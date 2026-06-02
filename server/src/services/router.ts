@@ -1,7 +1,7 @@
 import { getDb, getSetting, setSetting } from '../db/index.js';
 import { getProvider, resolveProvider } from '../providers/index.js';
 import { decrypt } from '../lib/crypto.js';
-import { canMakeRequest, canUseTokens, isOnCooldown } from './ratelimit.js';
+import { canMakeRequest, canUseTokens, isOnCooldown, canUseProvider } from './ratelimit.js';
 import {
   BANDIT_PRESETS, DEFAULT_STRATEGY, type RoutingStrategy, type RoutingWeights,
   reliabilityPosterior, expectedReliability, sampleBeta,
@@ -418,6 +418,11 @@ export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, pre
 
       // Check cooldown (from previous 429s)
       if (isOnCooldown(entry.platform, entry.model_id, key.id)) continue;
+
+      // Provider-wide daily request cap (#162): providers like OpenRouter cap
+      // total requests/day across ALL their models for the account, not per
+      // model — skip every model on this provider once that key hits the cap.
+      if (!canUseProvider(entry.platform, key.id)) continue;
 
       if (!canMakeRequest(entry.platform, entry.model_id, key.id, limits)) continue;
       if (!canUseTokens(entry.platform, entry.model_id, key.id, estimatedTokens, limits)) continue;
