@@ -6,7 +6,7 @@ import type { ChatMessage } from '@freellmapi/shared/types.js';
 import { routeRequest, recordRateLimitHit, recordSuccess, hasEnabledVisionModel, type RouteResult } from '../services/router.js';
 import { recordRequest, recordTokens, setCooldown, getCooldownDurationForLimit } from '../services/ratelimit.js';
 import { getDb, getUnifiedApiKey } from '../db/index.js';
-import { contentToString, messageHasImage } from '../lib/content.js';
+import { contentToString, messageHasImage, normalizeOutboundContent } from '../lib/content.js';
 
 export const proxyRouter = Router();
 
@@ -145,12 +145,6 @@ const toolCallSchema = z.object({
 const contentBlockSchema = z.object({ type: z.string() }).passthrough();
 const contentSchema = z.union([z.string(), z.array(contentBlockSchema)]);
 
-function hasNonEmptyContent(content: unknown): boolean {
-  if (typeof content === 'string') return content.length > 0;
-  if (Array.isArray(content)) return content.length > 0;
-  return false;
-}
-
 const systemMessageSchema = z.object({
   role: z.literal('system'),
   content: contentSchema,
@@ -163,17 +157,17 @@ const userMessageSchema = z.object({
   name: z.string().optional(),
 });
 
+// Assistant turns may carry empty/null content and no tool_calls — OpenAI
+// accepts these in conversation history (a turn that produced no visible text,
+// a placeholder, a tool turn whose content was emptied), and clients replay
+// them verbatim. We accept them too and coerce empty/null content to "" before
+// forwarding (see message build below) rather than 400-ing a payload OpenAI
+// would take. (#165)
 const assistantMessageSchema = z.object({
   role: z.literal('assistant'),
   content: z.union([contentSchema, z.null()]).optional(),
   name: z.string().optional(),
   tool_calls: z.array(toolCallSchema).optional(),
-}).refine((msg) => {
-  const hasContent = hasNonEmptyContent(msg.content);
-  const hasToolCalls = (msg.tool_calls?.length ?? 0) > 0;
-  return hasContent || hasToolCalls;
-}, {
-  message: 'assistant messages must include non-empty content or tool_calls',
 });
 
 const toolMessageSchema = z.object({
@@ -283,9 +277,19 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
   const { model: requestedModel, temperature, max_tokens, top_p, stream, tools, tool_choice, parallel_tool_calls } = parsed.data;
   const messages: ChatMessage[] = parsed.data.messages.map((m): ChatMessage => {
     if (m.role === 'assistant') {
+      const hasToolCalls = (m.tool_calls?.length ?? 0) > 0;
+      // With tool_calls, content: null is the correct OpenAI shape — keep it.
+      // Without tool_calls, coerce empty/null content to "" so strict upstreams
+      // don't choke on a null-content assistant turn we just accepted. (#165)
+      const isEmptyContent = m.content == null
+        || (typeof m.content === 'string' && m.content.length === 0)
+        || (Array.isArray(m.content) && m.content.length === 0);
+      const assistantContent: ChatMessage['content'] = hasToolCalls
+        ? (m.content ?? null)
+        : (isEmptyContent ? '' : m.content!);
       return {
         role: 'assistant',
-        content: m.content ?? null,
+        content: assistantContent,
         ...(m.name ? { name: m.name } : {}),
         ...(m.tool_calls ? { tool_calls: m.tool_calls.map(tc => ({
           id: tc.id,
@@ -426,6 +430,9 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
               if (attempt > 0) res.setHeader('X-Fallback-Attempts', String(attempt));
               streamStarted = true;
             }
+            // Coerce array-shaped delta.content to a string before forwarding,
+            // so spec-conforming clients don't break and tool_calls survive (#166).
+            normalizeOutboundContent(chunk);
             const text = streamChunkText(chunk);
             totalOutputTokens += Math.ceil(text.length / 4);
             res.write(`data: ${JSON.stringify(chunk)}\n\n`);
@@ -473,7 +480,8 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
 
         res.setHeader('X-Routed-Via', `${route.platform}/${route.modelId}`);
         if (attempt > 0) res.setHeader('X-Fallback-Attempts', String(attempt));
-        res.json(result);
+        // Normalize array-shaped message.content to a string on the way out (#166).
+        res.json(normalizeOutboundContent(result));
 
         logRequest(
           route.platform, route.modelId, route.keyId, 'success',
