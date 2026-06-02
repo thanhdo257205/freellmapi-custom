@@ -2,13 +2,18 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { Express } from 'express';
 import { createApp } from '../../app.js';
 import { getDb, initDb } from '../../db/index.js';
+import { mintDashboardToken, isGatedApiPath } from '../helpers/auth.js';
+
+let dashToken = '';
 
 async function request(app: Express, path: string) {
   const server = app.listen(0);
   const addr = server.address() as any;
   const url = `http://127.0.0.1:${addr.port}${path}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    headers: isGatedApiPath(path) ? { Authorization: `Bearer ${dashToken}` } : {},
+  });
   const data = await res.json().catch(() => null);
   server.close();
 
@@ -30,6 +35,7 @@ describe('Analytics API', () => {
     process.env.ENCRYPTION_KEY = '0'.repeat(64);
     initDb(':memory:');
     app = createApp();
+    dashToken = mintDashboardToken();
   });
 
   beforeEach(() => {
