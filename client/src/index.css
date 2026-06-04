@@ -136,6 +136,16 @@
         @apply bg-background text-foreground;
         font-feature-settings: 'ss01', 'cv11', 'tnum';
     }
+    /* Desktop shell (html.desktop set by the app's preload): let the
+       window's vibrancy show through a slightly-translucent backdrop so
+       the dashboard picks up the same glass as the tray popover. No effect
+       in the browser, where .desktop is never set. */
+    html.desktop body {
+        background-color: transparent;
+    }
+    html.desktop .desktop-backdrop {
+        background-color: color-mix(in oklab, var(--background) 86%, transparent);
+    }
     code, pre, kbd, samp {
         font-family: var(--font-mono);
         font-feature-settings: 'ss02', 'ss03';

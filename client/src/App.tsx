@@ -182,7 +182,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AuthGate>
-          <div className="min-h-screen bg-background">
+          <div className={`min-h-screen ${isDesktopApp ? 'desktop-backdrop' : 'bg-background'}`}>
             <Navbar />
             <main className="max-w-6xl mx-auto px-6 py-8">
               <Routes>
