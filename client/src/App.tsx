@@ -99,6 +99,14 @@ function Brand() {
 // padded for the macOS traffic lights, and without the web-only Sign out.
 const isDesktopApp = typeof window !== 'undefined' && (window as any).__FREEAPI_DESKTOP__ === true
 
+// The preload's own early classList.add can be lost (it may run before this
+// document exists), so the client claims the class itself at module load —
+// before the first React paint — keeping html.desktop CSS (transparent body,
+// glass backdrop) reliable.
+if (isDesktopApp) {
+  document.documentElement.classList.add('desktop')
+}
+
 function Navbar() {
   const { dark, toggle } = useDarkMode()
   const location = useLocation()
@@ -110,7 +118,9 @@ function Navbar() {
 
   return (
     <header
-      className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur"
+      // In the desktop shell the body backdrop is already translucent glass;
+      // a lighter wash keeps the title bar from looking more solid than the page.
+      className={`sticky top-0 z-40 border-b backdrop-blur ${isDesktopApp ? 'bg-background/45' : 'bg-background/80'}`}
       style={isDesktopApp ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined}
     >
       <div
