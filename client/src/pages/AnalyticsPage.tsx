@@ -105,6 +105,8 @@ export default function AnalyticsPage() {
           <Stat label="Input tokens" value={formatTokens(summary?.totalInputTokens)} />
           <Stat label="Output tokens" value={formatTokens(summary?.totalOutputTokens)} />
           <Stat label="Avg latency" value={`${summary?.avgLatencyMs ?? 0} ms`} />
+          {/* Priced per request at the served model's paid-API equivalent
+              rate (not a flat frontier-model rate) — see db/model-pricing.ts */}
           <Stat label="Est. savings" value={`$${summary?.estimatedCostSavings ?? '0.00'}`} />
         </div>
 
@@ -176,7 +178,8 @@ export default function AnalyticsPage() {
                         <TableHead className="text-right">Success</TableHead>
                         <TableHead className="text-right">Latency</TableHead>
                         <TableHead className="text-right">In tokens</TableHead>
-                        <TableHead className="text-right pr-4">Out tokens</TableHead>
+                        <TableHead className="text-right">Out tokens</TableHead>
+                        <TableHead className="text-right pr-4">Saved</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -188,7 +191,8 @@ export default function AnalyticsPage() {
                           <TableCell className="text-right tabular-nums">{m.successRate}%</TableCell>
                           <TableCell className="text-right tabular-nums">{m.avgLatencyMs} ms</TableCell>
                           <TableCell className="text-right tabular-nums">{formatTokens(m.totalInputTokens)}</TableCell>
-                          <TableCell className="text-right tabular-nums pr-4">{formatTokens(m.totalOutputTokens)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatTokens(m.totalOutputTokens)}</TableCell>
+                          <TableCell className="text-right tabular-nums pr-4">${(m.estimatedCost ?? 0).toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

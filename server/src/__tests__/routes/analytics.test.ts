@@ -28,6 +28,21 @@ function insertRequest(createdAt: string) {
   `).run(createdAt);
 }
 
+function insertTokensRequest(
+  platform: string,
+  modelId: string,
+  status: 'success' | 'error',
+  inputTokens: number,
+  outputTokens: number,
+  createdAt: string,
+) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO requests (platform, model_id, status, input_tokens, output_tokens, latency_ms, error, created_at)
+    VALUES (?, ?, ?, ?, ?, 3, NULL, ?)
+  `).run(platform, modelId, status, inputTokens, outputTokens, createdAt);
+}
+
 describe('Analytics API', () => {
   let app: Express;
 
@@ -73,5 +88,44 @@ describe('Analytics API', () => {
 
     expect(status).toBe(200);
     expect(body.totalRequests).toBe(2);
+  });
+
+  it('prices savings at the served model paid-equivalent rate', async () => {
+    // groq/llama-3.3-70b-versatile is mapped at $0.10/M in, $0.32/M out
+    // (db/model-pricing.ts): 10M in + 5M out → 1.00 + 1.60 = $2.60
+    insertTokensRequest('groq', 'llama-3.3-70b-versatile', 'success', 10_000_000, 5_000_000, '2026-05-29 11:00:00');
+
+    const { status, body } = await request(app, '/api/analytics/summary?range=24h');
+
+    expect(status).toBe(200);
+    expect(body.estimatedCostSavings).toBe(2.6);
+  });
+
+  it('falls back to modest default pricing for unmapped models', async () => {
+    // Unknown model → $0.20/M in, $0.80/M out: 10M in + 5M out → 2.00 + 4.00 = $6.00
+    insertTokensRequest('custom', 'mystery-model', 'success', 10_000_000, 5_000_000, '2026-05-29 11:00:00');
+
+    const { status, body } = await request(app, '/api/analytics/summary?range=24h');
+
+    expect(status).toBe(200);
+    expect(body.estimatedCostSavings).toBe(6);
+  });
+
+  it('excludes failed requests from savings', async () => {
+    insertTokensRequest('groq', 'llama-3.3-70b-versatile', 'error', 10_000_000, 0, '2026-05-29 11:00:00');
+
+    const { status, body } = await request(app, '/api/analytics/summary?range=24h');
+
+    expect(status).toBe(200);
+    expect(body.estimatedCostSavings).toBe(0);
+  });
+
+  it('returns per-model estimated cost in the by-model breakdown', async () => {
+    insertTokensRequest('groq', 'llama-3.3-70b-versatile', 'success', 10_000_000, 5_000_000, '2026-05-29 11:00:00');
+
+    const { status, body } = await request(app, '/api/analytics/by-model?range=24h');
+
+    expect(status).toBe(200);
+    expect(body[0].estimatedCost).toBe(2.6);
   });
 });
