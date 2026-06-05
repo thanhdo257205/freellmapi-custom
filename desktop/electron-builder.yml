@@ -12,7 +12,7 @@ asarUnpack:
   - "**/node_modules/better-sqlite3/**/*.node"
   - "**/node_modules/better-sqlite3/build/Release/**"
 extraResources:
-  - from: ../freeapi/client/dist
+  - from: ../client/dist
     to: client-dist
 mac:
   category: public.app-category.developer-tools
@@ -28,7 +28,8 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: assets/icon.ico
+  # electron-builder converts a >=256px PNG to .ico at build time.
+  icon: assets/appicon_1024.png
 nsis:
   oneClick: true
   deleteAppDataOnUninstall: false

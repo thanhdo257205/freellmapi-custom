@@ -4,16 +4,15 @@
 // (auth bootstrap, getDb) must be exported from here rather than imported
 // from server/src by the main bundle (which would get a second, empty copy).
 //
-// The server sources come from the sibling freellmapi checkout
-// (../freeapi — see README). Keep these relative imports in sync with the
-// FREEAPI_REPO default in main.ts and scripts/bundle-server.mjs.
-import '../../freeapi/server/src/env.js';
+// The server sources live in this same repo (../../server). Keep these
+// relative imports in sync with the repo-root default in main.ts.
+import '../../server/src/env.js';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
-import { createApp } from '../../freeapi/server/src/app.js';
-import { initDb, getDb, getUnifiedApiKey } from '../../freeapi/server/src/db/index.js';
-import { startHealthChecker } from '../../freeapi/server/src/services/health.js';
-import { userCount, createUser, createSession } from '../../freeapi/server/src/services/auth.js';
+import { createApp } from '../../server/src/app.js';
+import { initDb, getDb, getUnifiedApiKey } from '../../server/src/db/index.js';
+import { startHealthChecker } from '../../server/src/services/health.js';
+import { userCount, createUser, createSession } from '../../server/src/services/auth.js';
 
 export { getDb, getUnifiedApiKey };
 
