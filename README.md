@@ -185,16 +185,22 @@ More Docker operations and examples live in [docker/README.md](./docker/README.m
 
 ## Desktop app
 
-A native menu-bar app for macOS (Windows config included, untested) lives in
-[`desktop/`](./desktop): the entire router + dashboard running locally from your
-tray, with a glass popover showing live request stats. No published binaries —
-it builds from this repo in a few minutes:
+A native menu-bar app lives in [`desktop/`](./desktop): the entire router +
+dashboard running locally from your tray, with a glass popover showing live
+request stats.
+
+![FreeLLMAPI desktop app](repo-assets/desktop.png)
+
+No published binaries — it builds from this repo in a few minutes:
 
 ```bash
 npm install
 npm run desktop:dist        # macOS: desktop/dist-electron/FreeLLMAPI-…-arm64.dmg
-npm run desktop:dist:win    # Windows installer (untested — PRs welcome)
+npm run desktop:dist:win    # Windows installer
 ```
+
+> **Windows:** the build config is in place but not tested yet — if you try it,
+> a quick report (working or not) in an issue would be much appreciated.
 
 Locally built apps launch without Gatekeeper/SmartScreen warnings — no code
 signing involved. Full instructions in [desktop/README.md](./desktop/README.md).
