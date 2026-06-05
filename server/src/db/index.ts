@@ -58,6 +58,8 @@ export function initDb(dbPath?: string): Database.Database {
   migrateModelsV20KiloFree(db);
   migrateModelsV21PruneDead(db);
   migrateModelsV22Tools(db);
+  migrateModelsV23OpenCodeFree(db);
+  migrateModelsV24ReRank(db);
   // After all model migrations: add/refresh paid-equivalent pricing
   // (drives the realistic "Est. savings" analytics stat).
   applyModelPricing(db);
@@ -1438,6 +1440,7 @@ function migrateModelsV17IntelligenceTiers(db: Database.Database) {
         OR LOWER(model_id) LIKE '%deepseek-v4-flash%'
         OR LOWER(model_id) LIKE '%glm-5.1%'
         OR LOWER(model_id) LIKE '%minimax-m2.7%'
+        OR LOWER(model_id) LIKE '%minimax-m3%'
     `).run();
 
     // Large (AA 26–44). Demotes Gemini 2.5 Pro (35), Nemotron 3 Super/120B (36),
@@ -1725,6 +1728,30 @@ function migrateModelsV22Tools(db: Database.Database) {
   apply();
 }
 
+/**
+ * V23 (June 2026): Sync new OpenCode Zen free models from the upstream catalog.
+ * Live-probed from https://opencode.ai/zen/v1/models — only models with IDs
+ * ending in "-free" that are not yet seeded. Idempotent (INSERT OR IGNORE +
+ * fallback backfill), safe to re-run on every boot.
+ */
+function migrateModelsV23OpenCodeFree(db: Database.Database) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const additions: Array<[string, string, string, number, number, string, number | null, number | null, number | null, number | null, string, number | null]> = [
+    ['opencode', 'qwen3.6-plus-free',     'Qwen3.6 Plus Free (OpenCode Zen)',    4, 4, 'Frontier', 20, 200, null, null, 'promo (trial)', 131072],
+    ['opencode', 'minimax-m3-free',        'MiniMax M3 Free (OpenCode Zen)',      6, 4, 'Large',    20, 200, null, null, 'promo (trial)', 200000],
+    ['opencode', 'nemotron-3-ultra-free',  'Nemotron 3 Ultra Free (OpenCode Zen)', 9, 4, 'Large',   20, 200, null, null, 'promo (trial)', 131072],
+  ];
+
+  const apply = db.transaction(() => {
+    for (const a of additions) insert.run(...a);
+    backfillFallback(db);
+  });
+  apply();
+}
+
 // Embeddings V1 (2026-06): per-family embedding catalog. A "family" is one
 // model identity + dimension — vectors from different families live in
 // incompatible spaces, so /v1/embeddings only ever fails over WITHIN a family
@@ -1835,4 +1862,140 @@ export function setSetting(key: string, value: string): void {
     INSERT INTO settings (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(key, value);
+}
+
+/**
+ * V24 (June 2026): Full intelligence re-rank — the last comprehensive re-rank
+ * was V4 (April 2026). Since then 26 models were added across V5-V23 with ad-hoc
+ * ranks that don't reflect current benchmarks. This re-ranks every model by its
+ * V17-assigned tier using June 2026 Artificial Analysis Intelligence Index v4.0
+ * scores + SWE-bench Verified performance (Qwen3-Coder 480B family leads open
+ * models; DeepSeek V4 Pro/Flash are the strongest frontier coders; MiniMax M3
+ * outranks M2.7). Idempotent UPDATE, safe to re-run.
+ *
+ * Higher rank = weaker. Ties allowed (same capability family across providers).
+ */
+function migrateModelsV24ReRank(db: Database.Database) {
+  const setRank = db.prepare(`UPDATE models SET intelligence_rank = ? WHERE platform = ? AND model_id = ?`);
+  const ranks: Array<[number, string, string]> = [
+    // ── Frontier (AA ≥ 45, V17 tier) ──
+    [1,  'nvidia',      'qwen/qwen3-coder-480b-a35b-instruct'],   // SWE-bench leader among open models
+    [2,  'nvidia',      'deepseek-ai/deepseek-v4-pro'],           // strongest frontier coder
+    [3,  'nvidia',      'deepseek-ai/deepseek-v4-flash'],         // fast frontier
+    [3,  'huggingface', 'deepseek-ai/DeepSeek-V4-Flash'],
+    [3,  'opencode',    'deepseek-v4-flash-free'],
+    [4,  'google',      'gemini-3.5-flash'],                      // AA 55
+    [5,  'nvidia',      'moonshotai/kimi-k2.6'],                  // strong all-rounder
+    [5,  'cloudflare',  '@cf/moonshotai/kimi-k2.6'],
+    [5,  'huggingface', 'moonshotai/Kimi-K2.6'],
+    [6,  'nvidia',      'z-ai/glm-5.1'],                          // strong but slow cold-start
+    [7,  'opencode',    'minimax-m3-free'],                        // M3 > M2.7
+    [8,  'nvidia',      'minimaxai/minimax-m2.7'],
+    [9,  'google',      'gemini-3-flash-preview'],                // AA 46
+    [10, 'ollama',      'cogito-2.1:671b'],                        // reasoning specialist
+    [11, 'openrouter',  'openrouter/owl-alpha'],                   // OR-house agentic
+    [12, 'opencode',    'qwen3.6-plus-free'],                      // seed Frontier, no AA score yet
+
+    // ── Large (AA 26–44, V17 tier) ──
+    [1,  'ollama',      'qwen3-coder-next'],                       // ~80B-A3B coder
+    [1,  'huggingface', 'Qwen/Qwen3-Coder-Next'],
+    [2,  'cerebras',    'zai-glm-4.7'],                            // AA 42, re-enabled V21
+    [2,  'ollama',      'glm-4.7'],
+    [3,  'nvidia',      'nvidia/nemotron-3-super-120b-a12b'],      // AA 36
+    [3,  'opencode',    'nemotron-3-super-free'],
+    [3,  'kilo',        'nvidia/nemotron-3-super-120b-a12b:free'],
+    [3,  'cloudflare',  '@cf/nvidia/nemotron-3-120b-a12b'],
+    [4,  'opencode',    'nemotron-3-ultra-free'],                  // Ultra > Super, no AA yet
+    [5,  'sambanova',   'DeepSeek-V3.2'],                          // AA 32
+    [6,  'sambanova',   'DeepSeek-V3.1'],                          // AA 28
+    [7,  'openrouter',  'nousresearch/hermes-3-llama-3.1-405b:free'], // 405B, tool-use tuned
+    [8,  'cloudflare',  '@cf/zai-org/glm-4.7-flash'],              // GLM-4.7 distill
+    [8,  'zhipu',       'glm-4.7-flash'],                          // same GLM-4.7 family
+    [9,  'google',      'gemini-2.5-pro'],                         // AA 35, DISABLED V5
+    [9,  'google',      'gemini-3.1-pro-preview'],                 // DISABLED V13, AA 60+
+    [10, 'mistral',     'mistral-medium-latest'],                  // Mistral Medium 3.5, AA 32
+    [10, 'mistral',     'magistral-medium-latest'],                // reasoning-focused
+    [11, 'google',      'gemma-4-31b-it'],                          // AA 39
+    [11, 'google',      'gemma-4-26b-a4b-it'],                      // AA 31
+    [11, 'nvidia',      'google/gemma-4-31b-it'],
+    [11, 'cloudflare',  '@cf/google/gemma-4-26b-a4b-it'],
+    [11, 'ollama',      'gemma4:31b'],
+    [12, 'sambanova',   'gpt-oss-120b'],
+    [12, 'groq',        'openai/gpt-oss-120b'],
+    [12, 'cloudflare',  '@cf/openai/gpt-oss-120b'],
+    [12, 'ollama',      'gpt-oss:120b'],
+    [12, 'cerebras',    'gpt-oss-120b'],
+    [12, 'openrouter',  'openai/gpt-oss-120b:free'],               // same gpt-oss-120b family
+    [13, 'google',      'gemini-3.1-flash-lite-preview'],          // AA 34
+    [14, 'github',      'openai/gpt-4.1'],                          // AA 26-44 range
+    [14, 'zhipu',       'glm-4.5-flash'],                          // seed Large, no AA score
+    [15, 'openrouter',  'qwen/qwen3-next-80b-a3b-instruct:free'],
+    [16, 'opencode',    'big-pickle'],                              // stealth model, unknown capability
+    [17, 'kilo',        'poolside/laguna-m.1:free'],               // Poolside Laguna M.1
+    [17, 'openrouter',  'poolside/laguna-m.1:free'],               // same Laguna M.1 family
+    [18, 'cohere',      'command-a-03-2025'],                       // RAG/agent focused
+    [18, 'cohere',      'command-a-reasoning-08-2025'],
+    [19, 'ollama',      'devstral-2:123b'],                         // Devstral 2
+    [20, 'ollama',      'mistral-large-3:675b'],                   // DISABLED V13
+    [21, 'ollama',      'deepseek-v3.2'],                           // DISABLED V13
+    [22, 'ollama',      'kimi-k2-thinking'],                        // DISABLED V13
+
+    // ── Medium (AA 13–25, V17 tier) ──
+    [1,  'openrouter',  'qwen/qwen3-coder:free'],                  // AA 25 — top of Medium
+    [1,  'ollama',      'qwen3-coder:480b'],
+    [2,  'cerebras',    'qwen-3-235b-a22b-instruct-2507'],         // AA 25, DISABLED V14
+    [3,  'cloudflare',  '@cf/qwen/qwen3-30b-a3b-fp8'],            // Qwen3 30B MoE
+    [4,  'mistral',     'mistral-large-latest'],                   // AA 23
+    [4,  'nvidia',      'mistralai/mistral-large-3-675b-instruct-2512'],
+    [5,  'nvidia',      'meta/llama-4-maverick-17b-128e-instruct'], // AA 18
+    [5,  'sambanova',   'Llama-4-Maverick-17B-128E-Instruct'],
+    [6,  'google',      'gemini-2.5-flash'],                        // AA 21
+    [7,  'github',      'gpt-4o'],                                   // AA 17
+    [8,  'openrouter',  'z-ai/glm-4.5-air:free'],                   // AA 23
+    [9,  'cloudflare',  '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b'], // AA 17
+    [11, 'mistral',     'devstral-latest'],
+    [12, 'groq',        'meta-llama/llama-4-scout-17b-16e-instruct'], // AA 14
+    [12, 'cloudflare',  '@cf/meta/llama-4-scout-17b-16e-instruct'],
+    [13, 'groq',        'groq/compound'],                             // agent system, not a model
+    [15, 'google',      'gemini-2.5-flash-lite'],
+    [16, 'groq',        'llama-3.3-70b-versatile'],                  // AA 14
+    [16, 'sambanova',   'Meta-Llama-3.3-70B-Instruct'],
+    [16, 'cloudflare',  '@cf/meta/llama-3.3-70b-instruct-fp8-fast'],
+    [16, 'nvidia',      'meta/llama-3.3-70b-instruct'],
+    [16, 'nvidia',      'meta/llama-3.1-70b-instruct'],
+    [16, 'openrouter',  'meta-llama/llama-3.3-70b-instruct:free'],
+    [18, 'kilo',        'poolside/laguna-xs.2:free'],              // Poolside Laguna XS.2
+    [18, 'openrouter',  'poolside/laguna-xs.2:free'],              // same Laguna XS.2 family
+    [19, 'groq',        'qwen/qwen3-32b'],                           // Qwen3 32B
+    [20, 'openrouter',  'openai/gpt-oss-20b:free'],
+    [20, 'groq',        'openai/gpt-oss-20b'],
+    [20, 'groq',        'openai/gpt-oss-safeguard-20b'],
+    [20, 'ollama',      'gpt-oss:20b'],
+    [20, 'pollinations', 'openai-fast'],
+    [21, 'groq',        'groq/compound-mini'],                       // agent system, smaller
+    [22, 'mistral',     'mistral-small-latest'],                    // Mistral Small 4
+    [23, 'opencode',    'mimo-v2.5-free'],                           // MiMo-V2.5
+    [24, 'kilo',        'stepfun/step-3.7-flash:free'],            // StepFun 3.7 Flash
+    [25, 'nvidia',      'nvidia/nemotron-3-nano-30b-a3b'],          // weak at tools (V22 incident)
+    [25, 'openrouter',  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'],
+    [25, 'openrouter',  'nvidia/nemotron-3-nano-30b-a3b:free'],    // non-omni variant
+    [26, 'openrouter',  'nvidia/nemotron-nano-9b-v2:free'],        // even smaller
+    [27, 'cohere',      'command-r-plus-08-2024'],                    // RAG-focused, weak on code
+    [27, 'cohere',      'command-r-08-2024'],
+    [28, 'llm7',        'codestral-latest'],                          // LLM7 surviving row
+
+    // ── Small (AA ≤ 12, V17 tier) ──
+    [1,  'mistral',     'codestral-latest'],                       // HumanEval 86.6%, AA 8
+    [2,  'sambanova',   'gemma-3-12b-it'],                          // AA 9
+    [3,  'cloudflare',  '@cf/ibm-granite/granite-4.0-h-micro'],    // Granite 4.0 H Micro
+    [4,  'openrouter',  'liquid/lfm-2.5-1.2b-instruct:free'],      // Liquid 1.2B
+    [4,  'openrouter',  'liquid/lfm-2.5-1.2b-thinking:free'],      // Liquid 1.2B Thinking
+    [5,  'groq',        'llama-3.1-8b-instant'],                     // Llama 3.1 8B
+    [5,  'cerebras',    'llama3.1-8b'],                              // DISABLED V14
+    [6,  'mistral',     'ministral-8b-latest'],                     // Ministral 3 8B
+  ];
+  const apply = db.transaction(() => {
+    for (const [r, p, m] of ranks) setRank.run(r, p, m);
+  });
+  apply();
 }

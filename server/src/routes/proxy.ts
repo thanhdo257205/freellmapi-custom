@@ -285,6 +285,7 @@ export function isRetryableError(err: any): boolean {
     || msg.includes('quota') || msg.includes('resource_exhausted')
     || msg.includes('aborted') || msg.includes('timeout') || msg.includes('etimedout')
     || msg.includes('econnrefused') || msg.includes('econnreset')
+    || msg.includes('fetch failed')    // undici transport error (proxy down, DNS, TLS, etc.)
     || msg.includes('503') || msg.includes('unavailable')
     || msg.includes('500') || msg.includes('internal server error')
     // 413: this model's payload limit is too small for the request, but another
