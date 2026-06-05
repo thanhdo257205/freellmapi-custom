@@ -173,6 +173,7 @@ function createTables(db: Database.Database) {
 
   ensureRequestKeyIdColumn(db);
   ensureApiKeysBaseUrlColumn(db);
+  ensureModelsKeyIdColumn(db);
   ensureRequestTtfbColumn(db);
 }
 
@@ -200,6 +201,23 @@ function ensureApiKeysBaseUrlColumn(db: Database.Database) {
   const columns = db.prepare('PRAGMA table_info(api_keys)').all() as { name: string }[];
   if (!columns.some(col => col.name === 'base_url')) {
     db.prepare('ALTER TABLE api_keys ADD COLUMN base_url TEXT').run();
+  }
+}
+
+// `key_id` binds a custom model to the api_keys row that carries ITS endpoint,
+// so several custom providers can coexist (#212). NULL for built-in platforms
+// (any key of the platform serves any of its models).
+function ensureModelsKeyIdColumn(db: Database.Database) {
+  const columns = db.prepare('PRAGMA table_info(models)').all() as { name: string }[];
+  if (!columns.some(col => col.name === 'key_id')) {
+    db.prepare('ALTER TABLE models ADD COLUMN key_id INTEGER').run();
+    // Backfill: bind pre-existing custom models to the (single) legacy custom
+    // endpoint key so they keep routing to the URL they were created for.
+    db.prepare(`
+      UPDATE models
+         SET key_id = (SELECT id FROM api_keys WHERE platform = 'custom' ORDER BY id LIMIT 1)
+       WHERE platform = 'custom' AND key_id IS NULL
+    `).run();
   }
 }
 
