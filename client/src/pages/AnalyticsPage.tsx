@@ -19,11 +19,16 @@ function formatTokens(n?: number): string {
   return String(n)
 }
 
-function Stat({ label, value, className }: { label: string; value: string | number; className?: string }) {
+function Stat({ label, value, hint, className }: { label: string; value: string | number; hint?: string; className?: string }) {
   return (
-    <div className="rounded-3xl border bg-card px-4 py-3">
+    <div className="relative group rounded-3xl border bg-card px-4 py-3">
       <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className={`text-xl font-semibold tabular-nums mt-1 ${className ?? ''}`}>{value}</p>
+      {hint && (
+        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover:block z-50 w-56 rounded-lg border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-md">
+          {hint}
+        </div>
+      )}
     </div>
   )
 }
@@ -76,6 +81,17 @@ export default function AnalyticsPage() {
     queryFn: () => apiFetch<{ byCategory: any[]; byPlatform: any[]; detailed: any[] }>(`/api/analytics/error-distribution?range=${range}`),
   })
 
+  // Savings display as a monthly figure: shorter ranges extrapolate to 30
+  // days (24h ×30, 7d ×30/7); the 30d range shows the real number as-is.
+  // The hover hint always carries the actual period amount.
+  const actualSavings = summary?.estimatedCostSavings ?? 0
+  const savingsFactor = range === '24h' ? 30 : range === '7d' ? 30 / 7 : 1
+  const savings30d = actualSavings * savingsFactor
+  const savingsHint =
+    range === '30d'
+      ? `$${actualSavings.toFixed(2)} actually saved over the last 30 days, priced per model vs paid APIs. Not extrapolated.`
+      : `$${actualSavings.toFixed(2)} actually saved over the last ${range === '24h' ? '24 hours' : '7 days'}, priced per model vs paid APIs — extrapolated to a 30-day estimate.`
+
   return (
     <div>
       <PageHeader
@@ -106,8 +122,9 @@ export default function AnalyticsPage() {
           <Stat label="Output tokens" value={formatTokens(summary?.totalOutputTokens)} />
           <Stat label="Avg latency" value={`${summary?.avgLatencyMs ?? 0} ms`} />
           {/* Priced per request at the served model's paid-API equivalent
-              rate (not a flat frontier-model rate) — see db/model-pricing.ts */}
-          <Stat label="Est. savings" value={`$${summary?.estimatedCostSavings ?? '0.00'}`} />
+              rate (not a flat frontier-model rate) — see db/model-pricing.ts.
+              Shown as a 30-day figure; hover reveals the actual period amount. */}
+          <Stat label="Est. savings / 30d" value={`$${savings30d.toFixed(2)}`} hint={savingsHint} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
