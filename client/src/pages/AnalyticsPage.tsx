@@ -89,8 +89,8 @@ export default function AnalyticsPage() {
   const savings30d = actualSavings * savingsFactor
   const savingsHint =
     range === '30d'
-      ? `$${actualSavings.toFixed(2)} actually saved over the last 30 days, priced per model vs paid APIs. Not extrapolated.`
-      : `$${actualSavings.toFixed(2)} actually saved over the last ${range === '24h' ? '24 hours' : '7 days'}, priced per model vs paid APIs — extrapolated to a 30-day estimate.`
+      ? `Your actual savings over the last 30 days: $${actualSavings.toFixed(2)} — what the same tokens would have cost on paid APIs, priced per model. Not extrapolated.`
+      : `You actually saved $${actualSavings.toFixed(2)} over the last ${range === '24h' ? '24 hours' : '7 days'} — what the same tokens would have cost on paid APIs, priced per model. The number shown projects that pace over 30 days.`
 
   return (
     <div>
@@ -123,8 +123,9 @@ export default function AnalyticsPage() {
           <Stat label="Avg latency" value={`${summary?.avgLatencyMs ?? 0} ms`} />
           {/* Priced per request at the served model's paid-API equivalent
               rate (not a flat frontier-model rate) — see db/model-pricing.ts.
-              Shown as a 30-day figure; hover reveals the actual period amount. */}
-          <Stat label="Est. savings / 30d" value={`$${savings30d.toFixed(2)}`} hint={savingsHint} />
+              The value is a 30-day projection; the hover hint tells the whole
+              story (actual period amount + whether it was extrapolated). */}
+          <Stat label="Est. savings" value={`$${savings30d.toFixed(2)}`} hint={savingsHint} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
