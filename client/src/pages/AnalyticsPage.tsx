@@ -25,7 +25,9 @@ function Stat({ label, value, hint, className }: { label: string; value: string 
       <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className={`text-xl font-semibold tabular-nums mt-1 ${className ?? ''}`}>{value}</p>
       {hint && (
-        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover:block z-50 w-56 rounded-lg border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-md">
+        // Opens BELOW the card: the stats row sits right under the sticky
+        // navbar, and an upward tooltip slides beneath it.
+        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1.5 hidden group-hover:block z-50 w-56 rounded-lg border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-md">
           {hint}
         </div>
       )}
@@ -81,26 +83,36 @@ export default function AnalyticsPage() {
     queryFn: () => apiFetch<{ byCategory: any[]; byPlatform: any[]; detailed: any[] }>(`/api/analytics/error-distribution?range=${range}`),
   })
 
-  // Savings display as a monthly figure projected from the ACTUAL data
-  // span in the selected range (not the range length, which over-divides
-  // young installs and zeroes quiet days). Once the span reaches 30 days
-  // the real number shows as-is. The hover hint carries the whole story.
+  // Savings card shows ONE stable monthly figure regardless of the selected
+  // range: the last-30-days data projected to a full month from its actual
+  // span (a young install with 2 days of data shows 15x its 2-day total).
+  // Once 30 days of history exist the real total shows as-is. The hover
+  // hint carries the selected period's actual amount and the projection
+  // basis. Querying 30d separately is free: react-query shares the cache
+  // with the 30d tab.
+  const { data: summary30 } = useQuery({
+    queryKey: ['analytics', 'summary', '30d'],
+    queryFn: () => apiFetch<any>(`/api/analytics/summary?range=30d`),
+  })
   const actualSavings = summary?.estimatedCostSavings ?? 0
-  const rangeDays = range === '24h' ? 1 : range === '7d' ? 7 : 30
+  const baseSavings = summary30?.estimatedCostSavings ?? 0
   const spanDays = (() => {
-    if (!summary?.firstRequestAt) return rangeDays
+    if (!summary30?.firstRequestAt) return 30
     // SQLite stores UTC "YYYY-MM-DD HH:MM:SS"
-    const first = new Date(summary.firstRequestAt.replace(' ', 'T') + 'Z').getTime()
+    const first = new Date(summary30.firstRequestAt.replace(' ', 'T') + 'Z').getTime()
     const days = (Date.now() - first) / 86_400_000
-    // Clamp: at least an hour of pace, at most the range itself
-    return Math.min(Math.max(days, 1 / 24), rangeDays)
+    if (!Number.isFinite(days)) return 30
+    return Math.min(Math.max(days, 1 / 24), 30)
   })()
-  const extrapolated = spanDays < 30
-  const savings30d = extrapolated ? actualSavings * (30 / spanDays) : actualSavings
+  const extrapolated = spanDays < 29.5
+  const savings30d = extrapolated ? baseSavings * (30 / spanDays) : baseSavings
+  const rangeLabel = range === '24h' ? '24 hours' : range === '7d' ? '7 days' : '30 days'
   const spanLabel = spanDays >= 2 ? `${Math.round(spanDays)} days` : `${Math.max(1, Math.round(spanDays * 24))} hours`
-  const savingsHint = extrapolated
-    ? `You actually saved $${actualSavings.toFixed(2)} over the ${spanLabel} of data in this view. That is what the same tokens would have cost on paid APIs, priced per model. The number shown projects this pace over 30 days.`
-    : `Your actual savings over the last 30 days: $${actualSavings.toFixed(2)}. That is what the same tokens would have cost on paid APIs, priced per model. Not extrapolated.`
+  const savingsHint =
+    `You actually saved $${actualSavings.toFixed(2)} over the last ${rangeLabel}. That is what the same tokens would have cost on paid APIs, priced per model. ` +
+    (extrapolated
+      ? `The number shown projects your pace from the last ${spanLabel} of data to a full 30 days.`
+      : `The number shown is your real 30-day total.`)
 
   return (
     <div>
