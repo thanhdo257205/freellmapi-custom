@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/page-header'
+import { Tooltip as HoverTooltip } from '@/components/tooltip'
 import { formatSqliteUtcToLocalTime } from '@/lib/utils'
 
 type TimeRange = '24h' | '7d' | '30d'
@@ -20,19 +21,15 @@ function formatTokens(n?: number): string {
 }
 
 function Stat({ label, value, hint, className }: { label: string; value: string | number; hint?: string; className?: string }) {
-  return (
-    <div className="relative group rounded-3xl border bg-card px-4 py-3">
+  const card = (
+    <div className="rounded-3xl border bg-card px-4 py-3">
       <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className={`text-xl font-semibold tabular-nums mt-1 ${className ?? ''}`}>{value}</p>
-      {hint && (
-        // Opens BELOW the card: the stats row sits right under the sticky
-        // navbar, and an upward tooltip slides beneath it.
-        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1.5 hidden group-hover:block z-50 w-56 rounded-lg border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-md">
-          {hint}
-        </div>
-      )}
     </div>
   )
+  // Same portal tooltip as the routing strategy chips. Opens BELOW the card:
+  // the stats row sits right under the sticky navbar.
+  return hint ? <HoverTooltip text={hint} side="bottom" className="block">{card}</HoverTooltip> : card
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
