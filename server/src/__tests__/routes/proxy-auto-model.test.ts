@@ -70,6 +70,14 @@ describe('Virtual "auto" model', () => {
     expect(body.data.length).toBeGreaterThan(1);
   });
 
+  it('returns unique model ids from /v1/models', async () => {
+    const { status, body } = await request(app, 'GET', '/v1/models');
+    expect(status).toBe(200);
+
+    const ids = body.data.map((model: { id: string }) => model.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('treats model:"auto" as auto-route instead of a 400', async () => {
     const origFetch = global.fetch;
 
