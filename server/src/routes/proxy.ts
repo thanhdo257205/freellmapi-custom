@@ -103,7 +103,14 @@ export function setStickyModel(messages: ChatMessage[], modelDbId: number) {
 }
 
 // OpenAI-compatible /models endpoint (used by Hermes for metadata)
-proxyRouter.get('/models', (_req: Request, res: Response) => {
+proxyRouter.get('/models', (req: Request, res: Response) => {
+  const token = extractApiToken(req);
+  const unifiedKey = getUnifiedApiKey();
+  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+    res.status(401).json({ error: { message: 'Invalid API key', type: 'authentication_error' } });
+    return;
+  }
+
   const db = getDb();
   const models = db.prepare(`
     SELECT platform, model_id, display_name, context_window
