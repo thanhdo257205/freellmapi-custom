@@ -209,5 +209,73 @@ describe('OpenAI multimodal array content', () => {
       // Path-qualified detail ("messages.0...") instead of a bare "Invalid input"
       expect(body.error.message).toMatch(/messages\.0/);
     });
+
+    it('accepts tool_calls with missing or empty ids and pairs tool results by order', async () => {
+      const { status, body } = await request(app, 'POST', '/v1/chat/completions', {
+        messages: [
+          { role: 'user', content: 'list files' },
+          {
+            role: 'assistant',
+            content: null,
+            // Gemini-lineage: no id at all on the first, empty id on the second.
+            tool_calls: [
+              { function: { name: 'ls', arguments: '{}' } },
+              { id: '', function: { name: 'pwd', arguments: '{}' } },
+            ],
+          },
+          { role: 'tool', content: 'file1.ts' },
+          { role: 'tool', tool_call_id: '', content: '/home' },
+          { role: 'user', content: 'thanks' },
+        ],
+      }, authHeaders());
+      expect(status).not.toBe(400);
+      if (status === 400) throw new Error(`unexpected 400: ${JSON.stringify(body)}`);
+    });
+
+    it('accepts a tool message with null content (tool returned nothing)', async () => {
+      const { status, body } = await request(app, 'POST', '/v1/chat/completions', {
+        messages: [
+          { role: 'user', content: 'do it' },
+          { role: 'assistant', content: null, tool_calls: [{ id: 'c1', function: { name: 'noop', arguments: '{}' } }] },
+          { role: 'tool', tool_call_id: 'c1', content: null },
+          { role: 'user', content: 'ok' },
+        ],
+      }, authHeaders());
+      expect(status).not.toBe(400);
+      if (status === 400) throw new Error(`unexpected 400: ${JSON.stringify(body)}`);
+    });
+
+    it('accepts the legacy function role in history', async () => {
+      const { status, body } = await request(app, 'POST', '/v1/chat/completions', {
+        messages: [
+          { role: 'user', content: 'weather?' },
+          { role: 'function', name: 'get_weather', content: '{"temp": 20}' },
+          { role: 'user', content: 'thanks' },
+        ],
+      }, authHeaders());
+      expect(status).not.toBe(400);
+      if (status === 400) throw new Error(`unexpected 400: ${JSON.stringify(body)}`);
+    });
+
+    it('accepts max_tokens <= 0 (treated as no limit)', async () => {
+      for (const value of [-1, 0]) {
+        const { status, body } = await request(app, 'POST', '/v1/chat/completions', {
+          max_tokens: value,
+          messages: [{ role: 'user', content: 'hi' }],
+        }, authHeaders());
+        expect(status).not.toBe(400);
+        if (status === 400) throw new Error(`unexpected 400 for max_tokens ${value}: ${JSON.stringify(body)}`);
+      }
+    });
+
+    it('accepts tool_choice "any" and tools without a type field', async () => {
+      const { status, body } = await request(app, 'POST', '/v1/chat/completions', {
+        tool_choice: 'any',
+        tools: [{ function: { name: 'ls', parameters: { type: 'object', properties: {} } } }],
+        messages: [{ role: 'user', content: 'hi' }],
+      }, authHeaders());
+      expect(status).not.toBe(400);
+      if (status === 400) throw new Error(`unexpected 400: ${JSON.stringify(body)}`);
+    });
   });
 });
