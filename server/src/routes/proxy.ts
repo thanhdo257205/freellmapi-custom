@@ -213,7 +213,10 @@ const assistantMessageSchema = z.object({
   role: z.literal('assistant'),
   content: z.union([contentSchema, z.null()]).optional(),
   name: z.string().optional(),
-  tool_calls: z.array(toolCallSchema).optional(),
+  // tool_calls: null (not just missing) is what several agents replay for
+  // no-tool assistant turns — aionrs (AionUI's engine) writes it into every
+  // session-resumed assistant echo. Treated as absent. (#200)
+  tool_calls: z.array(toolCallSchema).nullable().optional(),
 });
 
 // Tool results may arrive with null/missing content (a tool that returned
@@ -274,9 +277,12 @@ const chatCompletionSchema = z.object({
   max_tokens: z.number().int().optional(),
   top_p: z.number().min(0).max(1).optional(),
   stream: z.boolean().optional(),
-  tools: z.array(toolDefinitionSchema).optional(),
-  tool_choice: toolChoiceSchema.optional(),
-  parallel_tool_calls: z.boolean().optional(),
+  // Top-level tool knobs may arrive as explicit nulls from clients that
+  // serialize every field of their request struct; all treated as absent
+  // and never forwarded as null. (#200)
+  tools: z.array(toolDefinitionSchema).nullable().optional(),
+  tool_choice: toolChoiceSchema.nullable().optional(),
+  parallel_tool_calls: z.boolean().nullable().optional(),
 });
 
 export function isRetryableError(err: any): boolean {
@@ -402,14 +408,15 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
     return;
   }
 
-  const { model: requestedModel, temperature, top_p, stream, parallel_tool_calls } = parsed.data;
+  const { model: requestedModel, temperature, top_p, stream } = parsed.data;
   // Agent-tolerant knob normalization (#200): max_tokens <= 0 means "no
   // limit" in several clients → unset; tool_choice 'any' is OpenAI's
   // 'required'; tool definitions get their 'function' type re-defaulted.
   const max_tokens = parsed.data.max_tokens != null && parsed.data.max_tokens > 0
     ? parsed.data.max_tokens : undefined;
-  const tool_choice = parsed.data.tool_choice === 'any' ? 'required' as const : parsed.data.tool_choice;
+  const tool_choice = parsed.data.tool_choice === 'any' ? 'required' as const : parsed.data.tool_choice ?? undefined;
   const tools = parsed.data.tools?.map(t => ({ ...t, type: 'function' as const }));
+  const parallel_tool_calls = parsed.data.parallel_tool_calls ?? undefined;
 
   // Pairing state for id-less tool calls (#200): every tool_call id (given or
   // synthesized) queues up here; a tool message without a tool_call_id takes
@@ -442,7 +449,10 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
         role: 'assistant',
         content: assistantContent,
         ...(m.name ? { name: m.name } : {}),
-        ...(m.tool_calls ? { tool_calls: m.tool_calls.map(tc => {
+        // hasToolCalls (not a bare truthiness check) so null AND empty-array
+        // tool_calls are dropped rather than forwarded — strict upstreams
+        // reject both shapes. (#200)
+        ...(hasToolCalls ? { tool_calls: m.tool_calls!.map(tc => {
           // Normalize echo-tolerant inputs back to the strict OpenAI shape
           // before forwarding (see toolCallSchema); synthesize missing ids
           // and queue every id for order-based tool-result pairing. (#200)
