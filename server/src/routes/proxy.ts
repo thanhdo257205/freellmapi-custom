@@ -154,11 +154,13 @@ const MAX_RETRIES = 20;
 
 // Echo-tolerant tool calls: agents replay OUR responses back as history, and
 // not all of them preserve the strict OpenAI shape. `type` may be dropped
-// (re-added on forward), and Gemini-lineage agents (Qwen Code, AionUI) often
-// send `arguments` as a parsed object instead of a JSON string — both get
-// normalized below rather than 400-ing the whole session. (#200)
+// (re-added on forward), Gemini-lineage agents (Qwen Code, AionUI) often
+// send `arguments` as a parsed object instead of a JSON string, and `id` may
+// be missing or empty (ids aren't a Gemini concept) — all get normalized
+// below rather than 400-ing the whole session. Missing ids are synthesized
+// and paired with their tool-result messages by order. (#200)
 const toolCallSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().optional(),
   type: z.literal('function').optional(),
   function: z.object({
     name: z.string().min(1),
@@ -214,15 +216,28 @@ const assistantMessageSchema = z.object({
   tool_calls: z.array(toolCallSchema).optional(),
 });
 
+// Tool results may arrive with null/missing content (a tool that returned
+// nothing) and a missing/empty tool_call_id (Gemini-lineage agents) — coerced
+// to "" and paired by order with the preceding tool_calls respectively. (#200)
 const toolMessageSchema = z.object({
   role: z.literal('tool'),
-  content: contentSchema,
-  tool_call_id: z.string().min(1),
+  content: z.union([contentSchema, z.null()]).optional(),
+  tool_call_id: z.string().optional(),
   name: z.string().optional(),
 });
 
+// Legacy function-calling shape (pre-tools OpenAI API). Old clients still
+// replay these in history; forwarded as a tool message. (#200)
+const functionMessageSchema = z.object({
+  role: z.literal('function'),
+  name: z.string().min(1),
+  content: z.union([contentSchema, z.null()]).optional(),
+});
+
 const toolDefinitionSchema = z.object({
-  type: z.literal('function'),
+  // Some agents omit `type` on tool definitions; re-defaulted to 'function'
+  // on forward. (#200)
+  type: z.literal('function').optional(),
   function: z.object({
     name: z.string().min(1),
     description: z.string().optional(),
@@ -232,7 +247,9 @@ const toolDefinitionSchema = z.object({
 });
 
 const toolChoiceSchema = z.union([
-  z.enum(['none', 'auto', 'required']),
+  // 'any' is the Mistral/Gemini wording for OpenAI's 'required'; mapped on
+  // forward. (#200)
+  z.enum(['none', 'auto', 'required', 'any']),
   z.object({
     type: z.literal('function'),
     function: z.object({
@@ -248,10 +265,13 @@ const chatCompletionSchema = z.object({
     userMessageSchema,
     assistantMessageSchema,
     toolMessageSchema,
+    functionMessageSchema,
   ])).min(1),
   model: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().positive().optional(),
+  // Some clients send max_tokens <= 0 (or -1) to mean "no limit"; accepted and
+  // treated as unset on forward. (#200)
+  max_tokens: z.number().int().optional(),
   top_p: z.number().min(0).max(1).optional(),
   stream: z.boolean().optional(),
   tools: z.array(toolDefinitionSchema).optional(),
@@ -382,7 +402,30 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
     return;
   }
 
-  const { model: requestedModel, temperature, max_tokens, top_p, stream, tools, tool_choice, parallel_tool_calls } = parsed.data;
+  const { model: requestedModel, temperature, top_p, stream, parallel_tool_calls } = parsed.data;
+  // Agent-tolerant knob normalization (#200): max_tokens <= 0 means "no
+  // limit" in several clients → unset; tool_choice 'any' is OpenAI's
+  // 'required'; tool definitions get their 'function' type re-defaulted.
+  const max_tokens = parsed.data.max_tokens != null && parsed.data.max_tokens > 0
+    ? parsed.data.max_tokens : undefined;
+  const tool_choice = parsed.data.tool_choice === 'any' ? 'required' as const : parsed.data.tool_choice;
+  const tools = parsed.data.tools?.map(t => ({ ...t, type: 'function' as const }));
+
+  // Pairing state for id-less tool calls (#200): every tool_call id (given or
+  // synthesized) queues up here; a tool message without a tool_call_id takes
+  // the oldest unanswered one, which matches the single-call-per-turn flow
+  // Gemini-lineage agents produce.
+  const pendingToolCallIds: string[] = [];
+  let syntheticIdCounter = 0;
+  const takeToolCallId = (given: string | undefined): string => {
+    if (given && given.length > 0) {
+      const qi = pendingToolCallIds.indexOf(given);
+      if (qi !== -1) pendingToolCallIds.splice(qi, 1);
+      return given;
+    }
+    return pendingToolCallIds.shift() ?? `call_auto_${++syntheticIdCounter}`;
+  };
+
   const messages: ChatMessage[] = parsed.data.messages.map((m): ChatMessage => {
     if (m.role === 'assistant') {
       const hasToolCalls = (m.tool_calls?.length ?? 0) > 0;
@@ -399,23 +442,40 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
         role: 'assistant',
         content: assistantContent,
         ...(m.name ? { name: m.name } : {}),
-        ...(m.tool_calls ? { tool_calls: m.tool_calls.map(tc => ({
-          id: tc.id,
+        ...(m.tool_calls ? { tool_calls: m.tool_calls.map(tc => {
           // Normalize echo-tolerant inputs back to the strict OpenAI shape
-          // before forwarding (see toolCallSchema). (#200)
-          type: 'function' as const,
-          function: { name: tc.function.name, arguments: toolCallArgsToString(tc.function.arguments) },
-          thought_signature: tc.thought_signature,
-        })) } : {}),
+          // before forwarding (see toolCallSchema); synthesize missing ids
+          // and queue every id for order-based tool-result pairing. (#200)
+          const id = tc.id && tc.id.length > 0 ? tc.id : `call_auto_${++syntheticIdCounter}`;
+          pendingToolCallIds.push(id);
+          return {
+            id,
+            type: 'function' as const,
+            function: { name: tc.function.name, arguments: toolCallArgsToString(tc.function.arguments) },
+            thought_signature: tc.thought_signature,
+          };
+        }) } : {}),
       };
     }
 
     if (m.role === 'tool') {
       return {
         role: 'tool',
-        content: m.content,
-        tool_call_id: m.tool_call_id,
+        // Null/missing content (a tool that returned nothing) → "". (#200)
+        content: m.content ?? '',
+        tool_call_id: takeToolCallId(m.tool_call_id),
         ...(m.name ? { name: m.name } : {}),
+      };
+    }
+
+    // Legacy function-calling result → forward as a tool message, paired by
+    // order like an id-less tool message. (#200)
+    if (m.role === 'function') {
+      return {
+        role: 'tool',
+        content: m.content ?? '',
+        tool_call_id: takeToolCallId(undefined),
+        name: m.name,
       };
     }
 
