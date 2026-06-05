@@ -48,6 +48,13 @@ export interface Model {
   supportsTools: boolean;
 }
 
+export interface ModelListRow {
+  platform: string;
+  model_id: string;
+  display_name: string;
+  context_window: number | null;
+}
+
 export type KeyStatus = 'healthy' | 'rate_limited' | 'invalid' | 'error' | 'unknown';
 
 export interface ApiKey {
