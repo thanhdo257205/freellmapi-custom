@@ -33,6 +33,13 @@ export function initDb(dbPath?: string): Database.Database {
   if (!isMemory) db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
+  migrateDbSchema(db);
+
+  console.log(`Database initialized at ${resolvedPath}`);
+  return db;
+}
+
+function migrateDbSchema(db: Database.Database) {
   createTables(db);
   initEncryptionKey(db);
   seedModels(db);
@@ -63,9 +70,6 @@ export function initDb(dbPath?: string): Database.Database {
   applyModelPricing(db);
   migrateEmbeddingsV1(db);
   ensureUnifiedKey(db);
-
-  console.log(`Database initialized at ${resolvedPath}`);
-  return db;
 }
 
 function createTables(db: Database.Database) {
