@@ -17,6 +17,7 @@ import { rescueInlineToolCalls, startsWithDialectMarker, couldBecomeDialectMarke
 import {
   isRetryableError,
   isPaymentRequiredError,
+  isModelNotFoundError,
   timingSafeStringEqual,
   extractApiToken,
   getStickyModel,
@@ -340,6 +341,7 @@ responsesRouter.post('/responses', async (req: Request, res: Response) => {
 
   const responseId = newId('resp');
   const skipKeys = new Set<string>();
+  const skipModels = new Set<number>();
   let lastError: any = null;
 
   // Stream bookkeeping (used only when stream === true).
@@ -353,7 +355,7 @@ responsesRouter.post('/responses', async (req: Request, res: Response) => {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     let route: RouteResult;
     try {
-      route = routeRequest(estimatedTotal, skipKeys.size > 0 ? skipKeys : undefined, preferredModel, false, wantsTools);
+      route = routeRequest(estimatedTotal, skipKeys.size > 0 ? skipKeys : undefined, preferredModel, false, wantsTools, skipModels.size > 0 ? skipModels : undefined);
     } catch (err: any) {
       const status = lastError ? 429 : (err.status ?? 503);
       const message = lastError
@@ -655,6 +657,9 @@ responsesRouter.post('/responses', async (req: Request, res: Response) => {
       }
 
       if (isRetryableError(err)) {
+        // Model-level 404: rule out the whole model for this request — its
+        // other keys would 404 the same way. (PR #111, credits @barbotkonv.)
+        if (isModelNotFoundError(err)) skipModels.add(route.modelDbId);
         skipKeys.add(`${route.platform}:${route.modelId}:${route.keyId}`);
         setCooldown(route.platform, route.modelId, route.keyId, isPaymentRequiredError(err)
           ? PAYMENT_REQUIRED_COOLDOWN_MS

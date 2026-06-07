@@ -344,6 +344,16 @@ export function isPaymentRequiredError(err: any): boolean {
     || msg.includes('insufficient balance');
 }
 
+// A 404 "model removed/deprecated upstream" error. It's a MODEL-level failure,
+// not a key-level one: every key for the platform will 404 the same way, so the
+// retry loop skips the entire model for the rest of the request instead of
+// burning one fallback attempt per key on the same dead route.
+// (PR #111, credits @barbotkonv.)
+export function isModelNotFoundError(err: any): boolean {
+  const msg = (err.message ?? '').toLowerCase();
+  return msg.includes('404') || msg.includes('not found') || msg.includes('no endpoints found');
+}
+
 // Pull the incremental text out of a streaming chunk for token counting.
 // Must tolerate chunks that carry no `choices` array at all: some providers
 // (e.g. Groq) emit usage/keepalive frames shaped like `{usage:{...}}` with no
@@ -609,12 +619,13 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
 
   // Retry loop: on 429/rate limit, skip that model+key and try the next one
   const skipKeys = new Set<string>();
+  const skipModels = new Set<number>();
   let lastError: any = null;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     let route: RouteResult;
     try {
-      route = routeRequest(estimatedTotal, skipKeys.size > 0 ? skipKeys : undefined, preferredModel, hasImage, wantsTools);
+      route = routeRequest(estimatedTotal, skipKeys.size > 0 ? skipKeys : undefined, preferredModel, hasImage, wantsTools, skipModels.size > 0 ? skipModels : undefined);
     } catch (err: any) {
       // No more models available
       if (lastError) {
@@ -936,6 +947,12 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
       logRequest(route.platform, route.modelId, route.keyId, 'error', estimatedInputTokens, 0, latency, safeError, null, pinnedModelId);
 
       if (isRetryableError(err)) {
+        // Model-level 404 (removed/deprecated upstream): rule the whole model
+        // out for the rest of this request — its other keys would 404 the same
+        // way. The per-key cooldown below still applies, so cross-request
+        // behavior (#66/#76) is unchanged. (PR #111, credits @barbotkonv.)
+        if (isModelNotFoundError(err)) skipModels.add(route.modelDbId);
+
         // Put this model+key on cooldown and try the next one
         const skipId = `${route.platform}:${route.modelId}:${route.keyId}`;
         skipKeys.add(skipId);
