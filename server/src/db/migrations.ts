@@ -30,6 +30,7 @@ export function migrateDbSchema(db: Database.Database) {
   migrateModelsV21PruneDead(db);
   migrateModelsV22Tools(db);
   migrateModelsV23FreeTierAudit(db);
+  migrateModelsV24ZenRefresh(db);
   // After all model migrations: add/refresh paid-equivalent pricing
   // (drives the realistic "Est. savings" analytics stat).
   applyModelPricing(db);
@@ -1698,6 +1699,8 @@ function migrateModelsV22Tools(db: Database.Database) {
         OR LOWER(model_id) LIKE '%gpt-5%'
         OR LOWER(model_id) LIKE '%nemotron-3-super%' -- benchmarked #8 with real tool calls; nano stays excluded
         OR LOWER(model_id) LIKE '%nemotron-nano-12b-v2-vl%' -- unlike the 30B nano: live-probed structured tool_calls (V23, 2026-06-07)
+        OR LOWER(model_id) LIKE '%nemotron-3-ultra%' -- structured tool_calls live-verified via Zen's dedicated endpoint (V24, 2026-06-07); covers the disabled OR row too
+        OR LOWER(model_id) LIKE '%minimax-m3%'       -- finish_reason:tool_calls live-verified on Zen (V24)
       )
     `).run();
   });
@@ -1734,8 +1737,9 @@ function migrateModelsV22Tools(db: Database.Database) {
  *   - openrouter nemotron-3-ultra-550b-a55b:free — 1M ctx, currently the
  *     biggest free model anywhere, but generation takes 180s+ even on trivial
  *     prompts (heavily congested), so it's seeded enabled=0. Flip it on when
- *     it serves sanely — and verify tools then (declared by OpenRouter, but
- *     unverifiable while it hangs, so V22 deliberately has no rule for it).
+ *     it serves sanely. (Tools were unverifiable on the OR route while it
+ *     hangs; V24 verified the model family's structured tool_calls via Zen's
+ *     dedicated endpoint and added the V22 rule, so this seed is now 1.)
  *   - openrouter llama-3.2-3b-instruct:free and
  *     dolphin-mistral-24b-venice-edition:free — both heavily contended
  *     (persistent upstream 429s at probe time) but real routes; no tools.
@@ -1767,7 +1771,7 @@ function migrateModelsV23FreeTierAudit(db: Database.Database) {
     `);
     const additions: Array<[string, string, string, number, number, string, number | null, number | null, number | null, number | null, string, number | null, number, number, number]> = [
       ['openrouter', 'moonshotai/kimi-k2.6:free',                                     'Kimi K2.6 (OR free)',                 3, 9,  'Frontier', 20, 200, null, null, '~6M',  262144,  1, 0, 1],
-      ['openrouter', 'nvidia/nemotron-3-ultra-550b-a55b:free',                        'Nemotron 3 Ultra 550B (free, slow)',  7, 11, 'Frontier', 20, 200, null, null, '~6M',  1000000, 0, 0, 0],
+      ['openrouter', 'nvidia/nemotron-3-ultra-550b-a55b:free',                        'Nemotron 3 Ultra 550B (free, slow)',  7, 11, 'Frontier', 20, 200, null, null, '~6M',  1000000, 0, 0, 1],
       ['openrouter', 'nvidia/nemotron-nano-12b-v2-vl:free',                           'Nemotron Nano 12B VL (free)',        26, 9,  'Medium',   20, 200, null, null, '~6M',  128000,  1, 1, 1],
       ['openrouter', 'meta-llama/llama-3.2-3b-instruct:free',                         'Llama 3.2 3B (free)',                30, 9,  'Small',    20, 200, null, null, '~6M',  131072,  1, 0, 0],
       ['openrouter', 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', 'Dolphin Mistral 24B Venice (free)',  25, 9,  'Medium',   20, 200, null, null, '~6M',  32768,   1, 0, 0],
@@ -1775,6 +1779,57 @@ function migrateModelsV23FreeTierAudit(db: Database.Database) {
     ];
     for (const a of additions) insert.run(...a);
     backfillFallback(db);
+  });
+  apply();
+}
+
+/**
+ * V24 (June 2026): OpenCode Zen roster refresh + NIM gemma pause. All claims
+ * live-probed 2026-06-07 with a real Zen account key through the gateway.
+ *
+ * Zen's promo roster rotated since V18:
+ *   - ADDED nemotron-3-ultra-free — newly docs-confirmed free, and unlike the
+ *     OpenRouter ultra route (which hangs: 0 tokens in 140s even streaming),
+ *     Zen serves it from a dedicated vLLM endpoint in ~2s WITH structured
+ *     tool_calls. Currently the biggest usable free model anywhere.
+ *   - ADDED minimax-m3-free — requested in #242 (thanks @Naster17). Live
+ *     probe: 2s chat, finish_reason:tool_calls. CAVEAT: not in Zen's docs
+ *     free table (same undocumented status qwen3.6-plus-free had before its
+ *     promo ended), so it may transition without notice — watchlist.
+ *   - qwen3.6-plus-free now errors "Free promotion has ended" — confirms the
+ *     docs-confirmed-only bar; never added, nothing to remove.
+ *   - nemotron-3-super-free DROPPED OUT of Zen's docs free table but still
+ *     serves (routes to the same congested NVIDIA :free upstream as
+ *     OpenRouter, ~15s). Kept enabled; prune if it starts billing or 402s.
+ *   - big-pickle unmasked: responses report model "deepseek-v4-flash".
+ *
+ * Also pauses nvidia/google/gemma-4-31b-it: still listed on NIM's /v1/models
+ * (only gemma-4 there) but every chat probe hangs 90s+ even on tiny prompts —
+ * NIM free-tier serverless capacity starvation (forum 504 reports, May–Jun
+ * 2026) compounded by a known gemma-4-31b dense Flash-Attention prefill
+ * deadlock upstream. Disabled like the V13 disables (re-asserted each boot);
+ * re-enable via a future migration when NIM serves it again. Gemma-4 coverage
+ * remains via google/openrouter/cloudflare rows.
+ *
+ * Idempotent: INSERT OR IGNORE + always-run UPDATEs, safe to re-run.
+ */
+function migrateModelsV24ZenRefresh(db: Database.Database) {
+  const apply = db.transaction(() => {
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window, enabled, supports_vision, supports_tools)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const additions: Array<[string, string, string, number, number, string, number | null, number | null, number | null, number | null, string, number | null, number, number, number]> = [
+      ['opencode', 'nemotron-3-ultra-free', 'Nemotron 3 Ultra Free (OpenCode Zen)',  7, 4, 'Frontier', 20, 200, null, null, 'promo (trial)', 131072, 1, 0, 1],
+      ['opencode', 'minimax-m3-free',       'MiniMax M3 Free (OpenCode Zen)',        4, 4, 'Frontier', 20, 200, null, null, 'promo (trial)', 131072, 1, 0, 1],
+    ];
+    for (const a of additions) insert.run(...a);
+    backfillFallback(db);
+
+    db.prepare(`
+      UPDATE models SET enabled = 0
+       WHERE platform = 'nvidia' AND model_id = 'google/gemma-4-31b-it'
+    `).run();
   });
   apply();
 }

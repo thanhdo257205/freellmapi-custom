@@ -15,6 +15,10 @@ export interface CompletionOptions {
   tools?: ChatToolDefinition[];
   tool_choice?: ChatToolChoice;
   parallel_tool_calls?: boolean;
+  /** Per-call HTTP timeout override. Not part of the OpenAI wire format (it is
+   * stripped before the request body is built); used by the probe script so
+   * NVIDIA's 15-60s serverless cold starts don't read as failures. */
+  timeoutMs?: number;
 }
 
 export abstract class BaseProvider {

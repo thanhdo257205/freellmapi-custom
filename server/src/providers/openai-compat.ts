@@ -70,7 +70,7 @@ export class OpenAICompatProvider extends BaseProvider {
         tool_choice: options?.tool_choice,
         parallel_tool_calls: options?.parallel_tool_calls,
       }),
-    }, this.timeoutMs);
+    }, options?.timeoutMs ?? this.timeoutMs);
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

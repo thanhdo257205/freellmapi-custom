@@ -131,11 +131,14 @@ export const MODEL_PRICING: PricingRow[] = [
   ['ollama', 'qwen3-coder-next', 0.11, 0.80],
   ['ollama', 'qwen3-coder:480b', 0.22, 1.80],
 
-  // OpenCode Zen (big-pickle is stealth — no equivalent)
+  // OpenCode Zen (big-pickle is stealth — no equivalent; V24 rows priced at
+  // the OpenRouter paid variants, snapshot 2026-06-07)
   ['opencode', 'big-pickle', null, null],
   ['opencode', 'deepseek-v4-flash-free', 0.098, 0.197],
   ['opencode', 'mimo-v2.5-free', 0.14, 0.28],
+  ['opencode', 'minimax-m3-free', 0.30, 1.20],
   ['opencode', 'nemotron-3-super-free', 0.09, 0.45],
+  ['opencode', 'nemotron-3-ultra-free', 0.50, 2.50],
 
   // OpenRouter :free pools (priced at the same model's paid variant)
   // V23 additions snapshot the OpenRouter pricing API on 2026-06-07.
