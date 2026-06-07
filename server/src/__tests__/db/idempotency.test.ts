@@ -242,10 +242,32 @@ describe('Migration idempotency', () => {
       ['cognitivecomputations/dolphin-mistral-24b-venice-edition:free', 1, 0, 0],
       ['meta-llama/llama-3.2-3b-instruct:free',                         1, 0, 0],
       ['moonshotai/kimi-k2.6:free',                                     1, 0, 1],
-      ['nvidia/nemotron-3-ultra-550b-a55b:free',                        0, 0, 0], // hangs 180s+; seeded disabled
+      ['nvidia/nemotron-3-ultra-550b-a55b:free',                        0, 0, 1], // hangs 180s+; seeded disabled (tools verified via Zen in V24)
       ['nvidia/nemotron-nano-12b-v2-vl:free',                           1, 1, 1],
       ['glm-4.6v-flash',                                                1, 1, 1],
     ]);
+  });
+
+  it('V24: Zen roster refresh lands and the hung NIM gemma is paused', () => {
+    process.env.ENCRYPTION_KEY = '0'.repeat(64);
+    const db = initDb(':memory:');
+
+    const zen = db.prepare(`
+      SELECT model_id, enabled, supports_tools FROM models
+       WHERE platform = 'opencode' AND model_id IN ('nemotron-3-ultra-free', 'minimax-m3-free')
+       ORDER BY model_id
+    `).all() as { model_id: string; enabled: number; supports_tools: number }[];
+    expect(zen.map(r => [r.model_id, r.enabled, r.supports_tools])).toEqual([
+      ['minimax-m3-free',       1, 1],
+      ['nemotron-3-ultra-free', 1, 1],
+    ]);
+
+    // The hung NIM gemma route is paused (row kept, enabled=0, re-asserted
+    // each boot like the V13 disables).
+    const gemma = db.prepare(`
+      SELECT enabled FROM models WHERE platform = 'nvidia' AND model_id = 'google/gemma-4-31b-it'
+    `).get() as { enabled: number };
+    expect(gemma.enabled).toBe(0);
   });
 
   it('all enabled catalog platforms have a registered provider', async () => {
