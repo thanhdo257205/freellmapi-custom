@@ -238,6 +238,11 @@ const assistantMessageSchema = z.object({
   // no-tool assistant turns — aionrs (AionUI's engine) writes it into every
   // session-resumed assistant echo. Treated as absent. (#200)
   tool_calls: z.array(toolCallSchema).nullable().optional(),
+  // Thinking trace echoed back by a client. DeepSeek thinking models on
+  // OpenCode Zen 400 ("reasoning_content in thinking mode must be passed back")
+  // unless the prior turn's reasoning_content is replayed, so keep it through
+  // validation instead of stripping it. See issue #255.
+  reasoning_content: z.string().nullable().optional(),
 });
 
 // Tool results may arrive with null/missing content (a tool that returned
@@ -507,6 +512,13 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
         role: 'assistant',
         content: assistantContent,
         ...(m.name ? { name: m.name } : {}),
+        // Replay the thinking trace verbatim. DeepSeek thinking models on
+        // OpenCode Zen reject a follow-up turn that drops it; other providers
+        // ignore the unknown field. Same round-trip rationale as
+        // thought_signature below. (#255)
+        ...(typeof m.reasoning_content === 'string' && m.reasoning_content.length > 0
+          ? { reasoning_content: m.reasoning_content }
+          : {}),
         // hasToolCalls (not a bare truthiness check) so null AND empty-array
         // tool_calls are dropped rather than forwarded — strict upstreams
         // reject both shapes. (#200)
