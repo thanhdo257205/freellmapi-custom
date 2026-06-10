@@ -49,6 +49,23 @@ export interface Model {
   supportsTools: boolean;
 }
 
+// ---- Quirks ----
+// Structured, reusable notes about catalog models. One quirk is applied to many
+// models via selector parameters (see quirk_targets / services/quirks.ts).
+export type QuirkSeverity = 'info' | 'warning' | 'blocker';
+
+export interface Quirk {
+  slug: string;
+  title: string;
+  body: string;
+  severity: QuirkSeverity;
+}
+
+export interface QuirkTarget {
+  platform: Platform | null;
+  modelGlob: string | null;
+}
+
 export interface ModelListRow {
   platform: string;
   model_id: string;

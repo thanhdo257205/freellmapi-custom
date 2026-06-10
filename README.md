@@ -11,6 +11,8 @@ Aggregate the free tiers from Google, Groq, Cerebras, NVIDIA, Mistral, OpenRoute
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 [![Docker image](https://img.shields.io/badge/ghcr.io-freellmapi-2496ED?logo=docker&logoColor=white)](https://github.com/tashfeenahmed/freellmapi/pkgs/container/freellmapi)
 
+**[freellmapi.co](https://freellmapi.co)** — browse the live model catalog
+
 ![Fallback chain with per-provider token budget](repo-assets/fallback-chain.png)
 
 </div>
@@ -26,6 +28,7 @@ Aggregate the free tiers from Google, Groq, Cerebras, NVIDIA, Mistral, OpenRoute
 - [Quick start](#quick-start)
 - [Docker](#docker)
 - [Desktop app](#desktop-app)
+- [Premium (live catalog)](#premium-live-catalog)
 - [Using the API](#using-the-api)
 - [Screenshots](#screenshots)
 - [How it works](#how-it-works)
@@ -107,10 +110,10 @@ PRs that add any of these are very welcome. See [Contributing](#contributing).
 **One-liner** (Docker required — sets up `~/freellmapi`, generates an encryption key, pulls the image, and starts the container):
 
 ```bash
-curl -fsSL https://tashfeenahmed.github.io/freellmapi/install.sh | bash
+curl -fsSL https://freellmapi.co/install.sh | bash
 ```
 
-Prefer to read before you pipe to bash? [The script is here](docs/install.sh). Re-running it is safe: your `.env` (and encryption key) is preserved and the container updates to `:latest`. Override the defaults with `FREELLMAPI_DIR`, `PORT`, or `HOST_BIND` env vars.
+Prefer to read before you pipe to bash? [The script is here](https://freellmapi.co/install.sh). Re-running it is safe: your `.env` (and encryption key) is preserved and the container updates to `:latest`. Override the defaults with `FREELLMAPI_DIR`, `PORT`, or `HOST_BIND` env vars.
 
 **Or manually with Docker Compose.** It runs the API and dashboard together on port 3001 and persists SQLite in a named volume.
 
@@ -201,7 +204,7 @@ request stats.
 
 ![FreeLLMAPI desktop app](repo-assets/desktop.png)
 
-No published binaries — it builds from this repo in a few minutes:
+**[Download the macOS app from Releases](https://github.com/tashfeenahmed/freellmapi/releases/latest)**, or build it from this repo in a few minutes:
 
 ```bash
 npm install
@@ -211,6 +214,24 @@ npm run desktop:dist:win    # Windows installer
 
 > **Windows:** the build config is in place but not tested yet — if you try it,
 > a quick report (working or not) in an issue would be much appreciated.
+
+## Premium (live catalog)
+
+The router keeps its model catalog fresh on its own: it pulls a signed catalog
+from [freellmapi.co](https://freellmapi.co) twice a day and applies new models,
+quota changes, and provider quirk fixes to your local DB (your own enable/disable
+choices and custom providers are never touched; every download is verified
+against a pinned Ed25519 key before it is applied).
+
+- **Free** installs follow a **monthly snapshot** — zero cost, forever.
+- **[Premium](https://freellmapi.co/#pricing)** ($19/yr or $49 lifetime) follows
+  the **live feed**, refreshed every 2-3 days, so new free models are in your
+  router the moment they exist. One key covers all your devices; activate it in
+  the dashboard under **Premium**. Cancel or manage billing self-serve at
+  [freellmapi.co/manage](https://freellmapi.co/manage).
+
+The catalog server never sees your prompts, completions, or provider keys — the
+router stays fully self-hosted either way.
 
 Locally built apps launch without Gatekeeper/SmartScreen warnings — no code
 signing involved. Full instructions in [desktop/README.md](./desktop/README.md).
