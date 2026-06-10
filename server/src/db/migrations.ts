@@ -36,6 +36,7 @@ export function migrateDbSchema(db: Database.Database) {
   // (drives the realistic "Est. savings" analytics stat).
   applyModelPricing(db);
   migrateEmbeddingsV1(db);
+  migrateQuirksV1(db);
   ensureUnifiedKey(db);
 }
 
@@ -1921,6 +1922,142 @@ function migrateEmbeddingsV1(db: Database.Database) {
   if (!def) {
     db.prepare("INSERT INTO settings (key, value) VALUES ('embeddings_default_family', 'gemini-embedding-001')").run();
   }
+}
+
+/**
+ * Quirks V1 (June 2026): promote the catalog's free-form "quirks" out of code
+ * comments into structured, reusable data so the catalog server can ship them.
+ *
+ * A quirk is defined ONCE (slug, title, body, severity) and applied to models
+ * by SELECTOR PARAMETERS rather than hand-attached per model — because one
+ * quirk routinely covers many models (a whole platform's keyless access, an
+ * entire model family that hangs upstream, etc.). Each row in quirk_targets is
+ * one selector; a NULL field is a wildcard:
+ *
+ *   platform NULL, model_glob NULL  -> every model (global note)
+ *   platform set,  model_glob NULL  -> every model on that platform
+ *   platform set,  model_glob set   -> that platform's models whose id GLOBs
+ *   platform NULL, model_glob set   -> any model whose id GLOBs (cross-platform)
+ *
+ * Resolution (see services/quirks.ts) is therefore:
+ *   (platform IS NULL OR platform = m.platform)
+ *   AND (model_glob IS NULL OR m.model_id GLOB model_glob)
+ *
+ * GLOB (not LIKE) so the selectors read like the model-family rules elsewhere
+ * in this file ('*nemotron-3-ultra*'). Severity drives client display:
+ * 'info' (neutral note), 'warning' (works but caveated), 'blocker' (knowingly
+ * unusable / disabled). Idempotent: tables are IF NOT EXISTS and the seed is a
+ * reset-then-insert of the curated set, so editing a seeded quirk in code wins
+ * on next boot while operator-added quirks (new slugs) are left untouched.
+ */
+function migrateQuirksV1(db: Database.Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS quirks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      severity TEXT NOT NULL DEFAULT 'info',
+      created_at_ms INTEGER NOT NULL,
+      updated_at_ms INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS quirk_targets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quirk_id INTEGER NOT NULL REFERENCES quirks(id) ON DELETE CASCADE,
+      platform TEXT,
+      model_glob TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_quirk_targets_quirk ON quirk_targets(quirk_id);
+  `);
+
+  // Curated seed — each entry is one quirk plus the selector parameters that
+  // apply it. Sourced from the catalog's existing code comments (V20–V24).
+  type Seed = {
+    slug: string;
+    title: string;
+    body: string;
+    severity: 'info' | 'warning' | 'blocker';
+    targets: Array<{ platform?: string; modelGlob?: string }>;
+  };
+  const seeds: Seed[] = [
+    {
+      slug: 'keyless-anonymous',
+      title: 'No API key required',
+      body: 'Routes anonymously — the catalog ships a keyless sentinel row and calls work with no account or key.',
+      severity: 'info',
+      targets: [{ platform: 'kilo' }, { platform: 'llm7' }, { platform: 'pollinations' }],
+    },
+    {
+      slug: 'cloudflare-key-format',
+      title: 'Key is account_id:token',
+      body: 'Cloudflare Workers AI authenticates with a combined credential in the form "account_id:token", not a bare token.',
+      severity: 'info',
+      targets: [{ platform: 'cloudflare' }],
+    },
+    {
+      slug: 'nvidia-credits-based',
+      title: 'Credit-based, not recurring-free',
+      body: 'NVIDIA NIM moved to a credit model in 2025; the free allotment is a depleting trial, not a recurring monthly tier. Disabled by default.',
+      severity: 'warning',
+      targets: [{ platform: 'nvidia' }],
+    },
+    {
+      slug: 'nim-gemma-hung',
+      title: 'NIM gemma route hangs',
+      body: 'The NVIDIA NIM gemma endpoint is listed but hangs (capacity starvation plus an upstream FlashAttention bug). Paused; probe with a 120s timeout before re-enabling.',
+      severity: 'blocker',
+      targets: [{ platform: 'nvidia', modelGlob: '*gemma*' }],
+    },
+    {
+      slug: 'or-ultra-hangs',
+      title: 'OpenRouter ultra route hangs',
+      body: 'nemotron-3-ultra (550B) on OpenRouter takes 180s+ even on trivial prompts (heavily congested), so its OR row is seeded disabled. Use the OpenCode Zen route instead.',
+      severity: 'warning',
+      targets: [{ platform: 'openrouter', modelGlob: '*nemotron-3-ultra*' }],
+    },
+    {
+      slug: 'zen-serves-ultra-fast',
+      title: 'Zen serves the 550B fast',
+      body: 'OpenCode Zen serves nemotron-3-ultra in ~2s with working tool calls where the OpenRouter route hangs — the live-verified path for this model.',
+      severity: 'info',
+      targets: [{ platform: 'opencode', modelGlob: '*nemotron-3-ultra*' }],
+    },
+    {
+      slug: 'zhipu-shared-key',
+      title: 'Works with existing Zhipu key',
+      body: 'glm-4.6v-flash is listed Free on Z.AI and answers 200 with the existing bigmodel.cn key; vision and structured tool calls both live-verified.',
+      severity: 'info',
+      targets: [{ platform: 'zhipu', modelGlob: '*glm-4.6v*' }],
+    },
+  ];
+
+  const now = Date.now();
+  const upsertQuirk = db.prepare(`
+    INSERT INTO quirks (slug, title, body, severity, created_at_ms, updated_at_ms)
+    VALUES (@slug, @title, @body, @severity, @now, @now)
+    ON CONFLICT(slug) DO UPDATE SET
+      title = excluded.title,
+      body = excluded.body,
+      severity = excluded.severity,
+      updated_at_ms = excluded.updated_at_ms
+  `);
+  const getId = db.prepare('SELECT id FROM quirks WHERE slug = ?');
+  const clearTargets = db.prepare('DELETE FROM quirk_targets WHERE quirk_id = ?');
+  const addTarget = db.prepare(
+    'INSERT INTO quirk_targets (quirk_id, platform, model_glob) VALUES (?, ?, ?)',
+  );
+
+  const apply = db.transaction(() => {
+    for (const s of seeds) {
+      upsertQuirk.run({ slug: s.slug, title: s.title, body: s.body, severity: s.severity, now });
+      const { id } = getId.get(s.slug) as { id: number };
+      // Reset the curated quirk's selectors so edits in code take effect, but
+      // leave quirks/targets with unknown slugs (operator-added) alone.
+      clearTargets.run(id);
+      for (const t of s.targets) addTarget.run(id, t.platform ?? null, t.modelGlob ?? null);
+    }
+  });
+  apply();
 }
 
 /** Append any models not yet in the fallback chain, lowest priority, ordered by
