@@ -65,6 +65,10 @@ function main() {
   const tier = (arg('tier') as 'live' | 'monthly' | undefined) ?? 'live';
   const version = arg('version') ?? dateVersion();
 
+  // In --stdout mode stdout must carry ONLY the JSON document; incidental
+  // logs (e.g. initDb's "Database initialized at ...") go to stderr instead.
+  if (flag('stdout')) console.log = console.error;
+
   initDb(dbPath);
   const db = getDb();
 
