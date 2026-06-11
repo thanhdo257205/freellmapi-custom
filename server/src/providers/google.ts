@@ -9,6 +9,7 @@ import type {
 } from '@freellmapi/shared/types.js';
 import { BaseProvider, providerHttpError, type CompletionOptions } from './base.js';
 import { contentToString } from '../lib/content.js';
+import { proxyFetch } from '../lib/proxy.js';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -206,7 +207,7 @@ async function imageUrlToInlineData(url: string): Promise<{ mimeType: string; da
   }
   if (/^https?:\/\//i.test(url)) {
     try {
-      const res = await fetch(url);
+      const res = await proxyFetch(url, undefined, 'google');
       if (!res.ok) return null;
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length === 0 || buf.length > MAX_IMAGE_BYTES) return null;

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { PageHeader } from '@/components/page-header'
 import type { ApiKey, Platform } from '../../../shared/types'
-import { Pencil, ExternalLink } from 'lucide-react'
+import { Pencil, ExternalLink, Globe } from 'lucide-react'
 import { formatSqliteUtcToLocalTime } from '@/lib/utils'
 
 // Small "Get API key" external link shown next to a provider (#137).
@@ -167,6 +167,102 @@ function UnifiedKeySection() {
         <code className="font-mono">/v1/responses</code>
         <span className="text-muted-foreground">Embeddings</span>
         <code className="font-mono">/v1/embeddings <span className="text-muted-foreground">(model: "auto" or a family from the Embeddings tab)</span></code>
+      </div>
+    </section>
+  )
+}
+
+function ProxySettingsSection() {
+  const queryClient = useQueryClient()
+  const [proxyUrl, setProxyUrl] = useState('')
+
+  const { data, isError } = useQuery<{ proxyUrl: string; enabled: boolean; bypassPlatforms: string[]; active: boolean }>({
+    queryKey: ['proxy-url'],
+    queryFn: () => apiFetch('/api/settings/proxy'),
+  })
+
+  // Sync from server when the query refetches; keep the user's typed value
+  // in between (controlled input).
+  useEffect(() => {
+    if (data) setProxyUrl(data.proxyUrl)
+  }, [data?.proxyUrl])
+
+  const saveProxy = useMutation({
+    mutationFn: (body: { proxyUrl?: string; enabled?: boolean; bypassPlatforms?: string[] }) =>
+      apiFetch<{ proxyUrl: string; enabled: boolean; bypassPlatforms: string[]; active: boolean }>('/api/settings/proxy', { method: 'PUT', body: JSON.stringify(body) }),
+    onSuccess: (result: { proxyUrl: string; enabled: boolean; bypassPlatforms: string[]; active: boolean }) => {
+      queryClient.invalidateQueries({ queryKey: ['proxy-url'] })
+      setProxyUrl(result.proxyUrl)
+    },
+  })
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    saveProxy.mutate({ proxyUrl })
+  }
+
+  const enabled = data?.enabled ?? true
+  const active = data?.active ?? false
+
+  return (
+    <section className="rounded-3xl border bg-card p-5">
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div>
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Globe className="size-3.5 text-muted-foreground" />
+            Outbound proxy
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Route outbound LLM requests through a proxy. Supports SOCKS5, HTTP, and HTTPS.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={enabled}
+            onCheckedChange={(checked) => saveProxy.mutate({ enabled: checked })}
+            disabled={saveProxy.isPending || !data}
+          />
+          {active && enabled && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+              Active
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isError ? (
+        <p className="text-xs text-muted-foreground">Could not load proxy settings.</p>
+      ) : (
+        <form onSubmit={submit} className="flex items-end gap-3">
+          <div className="space-y-1.5 flex-1">
+            <Label className="text-xs">Proxy URL</Label>
+            <Input
+              value={proxyUrl}
+              onChange={e => setProxyUrl(e.target.value)}
+              placeholder="socks5://127.0.0.1:1080"
+              className="font-mono text-xs"
+            />
+          </div>
+          <Button type="submit" size="sm" disabled={saveProxy.isPending}>
+            {saveProxy.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </form>
+      )}
+
+      {saveProxy.isError && (
+        <p className="text-destructive text-xs mt-2">{(saveProxy.error as Error).message}</p>
+      )}
+
+      <div className="mt-3 text-[11px] text-muted-foreground">
+        <p>
+          Also configurable via the <code className="font-mono">PROXY_URL</code> environment variable
+          (takes precedence). Leave blank to disable. Examples:
+        </p>
+        <ul className="list-disc list-inside mt-1 space-y-0.5">
+          <li><code className="font-mono">socks5://127.0.0.1:1080</code></li>
+          <li><code className="font-mono">http://proxy.corp.com:8080</code></li>
+          <li><code className="font-mono">socks5://user:pass@proxy:1080</code></li>
+        </ul>
       </div>
     </section>
   )
@@ -378,6 +474,24 @@ export default function KeysPage() {
   const healthKeyMap = new Map<number, { status: string; lastCheckedAt: string | null }>()
   for (const k of healthData?.keys ?? []) healthKeyMap.set(k.id, k)
 
+  // Proxy bypass: shared query with ProxySettingsSection (same queryKey).
+  const { data: proxyData } = useQuery<{ proxyUrl: string; enabled: boolean; bypassPlatforms: string[]; active: boolean }>({
+    queryKey: ['proxy-url'],
+    queryFn: () => apiFetch('/api/settings/proxy'),
+  })
+  const bypassPlatforms = proxyData?.bypassPlatforms ?? []
+  const proxyEnabled = proxyData?.enabled ?? true
+
+  const toggleBypass = useMutation({
+    mutationFn: (platform: string) => {
+      const next = bypassPlatforms.includes(platform)
+        ? bypassPlatforms.filter(p => p !== platform)
+        : [...bypassPlatforms, platform]
+      return apiFetch('/api/settings/proxy', { method: 'PUT', body: JSON.stringify({ bypassPlatforms: next }) })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['proxy-url'] }),
+  })
+
   const grouped = [...PLATFORMS, CUSTOM_GROUP].map(p => ({
     ...p,
     keys: keys.filter(k => k.platform === p.value),
@@ -399,6 +513,8 @@ export default function KeysPage() {
 
       <div className="space-y-8">
         <UnifiedKeySection />
+
+        <ProxySettingsSection />
 
         <section>
           <h2 className="text-sm font-medium mb-3">Add a provider key</h2>
@@ -493,6 +609,16 @@ export default function KeysPage() {
                         disabled={togglePlatform.isPending}
                       />
                       <h3 className="text-sm font-medium">{group.label}</h3>
+                      {proxyEnabled && (
+                        <div className="inline-flex items-center gap-1.5 ml-1">
+                          <span className="text-[10px] text-muted-foreground">proxy</span>
+                          <Switch
+                            checked={!bypassPlatforms.includes(group.value)}
+                            onCheckedChange={() => toggleBypass.mutate(group.value)}
+                            disabled={toggleBypass.isPending}
+                          />
+                        </div>
+                      )}
                       <GetKeyLink url={group.url} />
                     </div>
                     <span className="text-xs text-muted-foreground tabular-nums">
