@@ -189,7 +189,7 @@ function ProxySettingsSection() {
 
   const saveProxy = useMutation({
     mutationFn: (body: { proxyUrl?: string; enabled?: boolean; bypassPlatforms?: string[] }) =>
-      apiFetch('/api/settings/proxy', { method: 'PUT', body: JSON.stringify(body) }),
+      apiFetch<{ proxyUrl: string; enabled: boolean; bypassPlatforms: string[]; active: boolean }>('/api/settings/proxy', { method: 'PUT', body: JSON.stringify(body) }),
     onSuccess: (result: { proxyUrl: string; enabled: boolean; bypassPlatforms: string[]; active: boolean }) => {
       queryClient.invalidateQueries({ queryKey: ['proxy-url'] })
       setProxyUrl(result.proxyUrl)
