@@ -1,7 +1,25 @@
-import { ProxyAgent } from 'undici';
-import { SocksProxyAgent } from 'socks-proxy-agent';
 import http from 'http';
 import https from 'https';
+
+// undici (ProxyAgent) and socks-proxy-agent are lazy-loaded on first proxy use
+// ONLY. Importing undici at module top-level eagerly runs its web/cache init,
+// which throws on some Node 20.x builds ("webidl.util.markAsUncloneable is not
+// a function"). Since this module is imported by every provider via base.ts, a
+// top-level undici import crashed the entire app/test suite even when no proxy
+// was configured. Lazy-loading keeps the proxy feature genuinely zero-cost and
+// zero-risk for the common no-proxy case.
+type Ctor<T> = new (...args: any[]) => T;
+let _proxyAgentCtor: Ctor<unknown> | null = null;
+let _socksAgentCtor: Ctor<unknown> | null = null;
+
+async function loadHttpProxyAgent(): Promise<Ctor<unknown>> {
+  if (!_proxyAgentCtor) _proxyAgentCtor = (await import('undici')).ProxyAgent as unknown as Ctor<unknown>;
+  return _proxyAgentCtor;
+}
+async function loadSocksAgent(): Promise<Ctor<unknown>> {
+  if (!_socksAgentCtor) _socksAgentCtor = (await import('socks-proxy-agent')).SocksProxyAgent as unknown as Ctor<unknown>;
+  return _socksAgentCtor;
+}
 
 // Module-level proxy URL.
 let _proxyUrl = '';
@@ -11,7 +29,7 @@ let _initialized = false;
 
 // Cache.
 let cached: {
-  dispatcher: ProxyAgent | SocksProxyAgent | undefined;
+  dispatcher: unknown | undefined;
   proxyUrl: string;
   isSocks: boolean;
   ts: number;
@@ -81,11 +99,11 @@ function shouldBypassProxy(platform?: string): boolean {
  * Resolve the proxy dispatcher. For SOCKS schemes this returns a
  * SocksProxyAgent; for HTTP/HTTPS it returns an undici ProxyAgent.
  */
-function resolveDispatcher(): ProxyAgent | SocksProxyAgent | undefined {
+async function resolveDispatcher(): Promise<{ dispatcher: unknown; isSocks: boolean } | undefined> {
   const now = Date.now();
 
   if (cached && (now - cached.ts) < CACHE_TTL_MS) {
-    return cached.dispatcher;
+    return cached.dispatcher ? { dispatcher: cached.dispatcher, isSocks: cached.isSocks } : undefined;
   }
 
   if (!_initialized) applyProxyUrl('');
@@ -99,14 +117,16 @@ function resolveDispatcher(): ProxyAgent | SocksProxyAgent | undefined {
     const isSocks = _proxyUrl.startsWith('socks5:') || _proxyUrl.startsWith('socks4:');
 
     if (isSocks) {
-      const dispatcher = new SocksProxyAgent(_proxyUrl);
+      const SocksAgent = await loadSocksAgent();
+      const dispatcher = new SocksAgent(_proxyUrl);
       cached = { dispatcher, proxyUrl: _proxyUrl, isSocks: true, ts: now };
-      return dispatcher;
+      return { dispatcher, isSocks: true };
     }
 
-    const dispatcher = new ProxyAgent({ uri: _proxyUrl });
+    const ProxyAgentCtor = await loadHttpProxyAgent();
+    const dispatcher = new ProxyAgentCtor({ uri: _proxyUrl });
     cached = { dispatcher, proxyUrl: _proxyUrl, isSocks: false, ts: now };
-    return dispatcher;
+    return { dispatcher, isSocks: false };
   } catch (err: any) {
     const masked = _proxyUrl.replace(/\/\/[^@]*@/, '//***@');
     console.error(`[proxy] Failed to create dispatcher for "${masked}": ${err.message}`);
@@ -117,7 +137,7 @@ function resolveDispatcher(): ProxyAgent | SocksProxyAgent | undefined {
 
 // ── SOCKS-compatible fetch via http/https modules ──
 
-function socksFetch(urlStr: string, init?: RequestInit, agent?: SocksProxyAgent): Promise<Response> {
+function socksFetch(urlStr: string, init?: RequestInit, agent?: http.Agent): Promise<Response> {
   const url = new URL(urlStr);
   const isTls = url.protocol === 'https:';
   const transport = isTls ? https : http;
@@ -211,28 +231,29 @@ export async function proxyFetch(url: string, init?: RequestInit, platform?: str
     return fetch(url, init);
   }
 
-  const d = resolveDispatcher();
+  const resolved = await resolveDispatcher();
 
-  // No dispatcher (no proxy URL configured) → direct
-  if (!d) {
+  // No dispatcher (no proxy URL configured, or it failed to build) → direct
+  if (!resolved) {
     return fetch(url, init);
   }
 
   // SOCKS proxy → http/https fallback
-  if (d instanceof SocksProxyAgent) {
-    return socksFetch(url, init, d);
+  if (resolved.isSocks) {
+    return socksFetch(url, init, resolved.dispatcher as http.Agent);
   }
 
   // HTTP/HTTPS proxy → undici (dispatcher is an undici extension not in TS types)
-  return fetch(url, { ...init, dispatcher: d } as unknown as RequestInit);
+  return fetch(url, { ...init, dispatcher: resolved.dispatcher } as unknown as RequestInit);
 }
 
 /**
- * Returns true when the proxy is configured AND enabled.
- * Used by the dashboard to show the "Active" badge.
+ * Returns true when the proxy is configured AND enabled. Used by the dashboard
+ * to show the "Active" badge. Intentionally does NOT construct a dispatcher (so
+ * it never triggers the lazy undici import) — "configured + enabled" is exactly
+ * what the badge means.
  */
 export function isProxyActive(): boolean {
-  if (!_proxyEnabled) return false;
-  resolveDispatcher();
-  return !!cached?.dispatcher;
+  if (!_initialized) applyProxyUrl('');
+  return _proxyEnabled && !!_proxyUrl;
 }
