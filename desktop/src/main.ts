@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, dialog, ipcMain, clipboard, nativeTheme } from 'electron';
+import { app, dialog, ipcMain, clipboard, nativeTheme, shell } from 'electron';
 import { startServer, ensureSessionToken, getUnifiedApiKey } from './server.mjs';
 import { loadConfig, saveConfig } from './config.js';
 import { buildTray } from './tray.js';
@@ -37,6 +37,33 @@ if (!app.requestSingleInstanceLock()) {
 
   // The app lives in the tray; closing the dashboard window must not quit.
   app.on('window-all-closed', () => {});
+
+  // Every window is a view onto the local dashboard, so anything that isn't
+  // the local server belongs in the system browser. Without a window-open
+  // handler, target="_blank" links (e.g. "Get API key" on the Keys page)
+  // spawn a bare child window that inherits our preload and renders blank
+  // (#304) — deny the window and hand the URL to the OS instead. Only
+  // http(s) ever reaches openExternal.
+  const isExternal = (url: string) => {
+    try {
+      const u = new URL(url);
+      return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname !== '127.0.0.1';
+    } catch {
+      return false;
+    }
+  };
+  app.on('web-contents-created', (_event, contents) => {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (isExternal(url)) shell.openExternal(url);
+      return { action: 'deny' };
+    });
+    contents.on('will-navigate', (event, url) => {
+      if (isExternal(url)) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    });
+  });
 
   // ── popover IPC ──────────────────────────────────────────────────────────
   ipcMain.handle('freeapi:snapshot', () => {
