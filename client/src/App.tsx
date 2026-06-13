@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Menu, Moon, Sun } from 'lucide-react'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Menu, MoreHorizontal, Moon, Sun } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,19 +74,6 @@ function useDarkMode() {
   return { dark, toggle }
 }
 
-function DarkModeToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={onToggle}
-      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-    >
-      {dark ? <Sun /> : <Moon />}
-    </Button>
-  )
-}
-
 function Brand() {
   return (
     <Link to="/" className="flex items-center gap-2 transition-opacity hover:opacity-70">
@@ -144,12 +131,26 @@ function Navbar() {
           className="ml-auto hidden items-center gap-1 md:flex"
           style={isDesktopApp ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}
         >
-          <DarkModeToggle dark={dark} onToggle={toggle} />
-          {!isDesktopApp && (
-            <Button variant="ghost" size="sm" onClick={() => logout()}>
-              Sign out
-            </Button>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={buttonVariants({ variant: 'ghost', size: 'icon' })}
+              aria-label="Open menu"
+            >
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={toggle} className="justify-between">
+                <span>Theme</span>
+                {dark ? <Sun /> : <Moon />}
+              </DropdownMenuItem>
+              {!isDesktopApp && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => logout()}>Sign out</DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="ml-auto md:hidden">
           <DropdownMenu>
