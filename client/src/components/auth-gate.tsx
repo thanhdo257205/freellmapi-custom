@@ -119,7 +119,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <Centered>
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
-          Can't reach the server. Make sure the backend is running (<code className="font-mono">npm run dev</code>).
+          {t('auth.serverUnreachableBefore')}<code className="font-mono">npm run dev</code>{t('auth.serverUnreachableAfter')}
         </div>
       </Centered>
     )

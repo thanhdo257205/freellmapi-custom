@@ -28,9 +28,10 @@
     "creating": "Criando…",
     "signingIn": "Entrando…",
     "loading": "Carregando…",
-    "serverUnreachable": "Não foi possível acessar o servidor. Verifique se o backend está em execução (npm run dev).",
     "newPasswordAutoComplete": "new-password",
-    "currentPasswordAutoComplete": "current-password"
+    "currentPasswordAutoComplete": "current-password",
+    "serverUnreachableBefore": "Não foi possível acessar o servidor. Verifique se o backend está em execução (",
+    "serverUnreachableAfter": ")."
   },
   "common": {
     "save": "Salvar",
@@ -53,7 +54,14 @@
     "error": "Erro",
     "noData": "Ainda não há dados",
     "unsavedChanges": "Alterações não salvas",
-    "saveChanges": "Salvar alterações"
+    "saveChanges": "Salvar alterações",
+    "check": "Verificar",
+    "remove": "Remover",
+    "unknownError": "Erro desconhecido",
+    "model": "Modelo",
+    "provider": "Provedor",
+    "success": "Sucessos",
+    "failures": "Falhas"
   },
   "models": {
     "title": "Modelos",
@@ -114,9 +122,8 @@
   },
   "keys": {
     "pageTitle": "Chaves",
-    "pageDescription": "Adicione e renove as chaves de API de cada provedor do nível gratuito. Armazenadas com criptografia AES-256-GCM.",
+    "pageDescription": "As credenciais dos provedores e a chave de API unificada à qual seus aplicativos se conectam.",
     "unifiedKey": "Sua chave de API unificada",
-    "unifiedKeyDescription": "Use-a como sua api_key da OpenAI; ela autentica as solicitações a este proxy.",
     "regenerate": "Regenerar",
     "showKey": "Mostrar",
     "hideKey": "Ocultar",
@@ -140,9 +147,8 @@
     "saveProxy": "Salvar",
     "savingProxy": "Salvando…",
     "proxyLoadFailed": "Não foi possível carregar as configurações do proxy.",
-    "proxyEnvHint": "Também configurável pela variável de ambiente PROXY_URL (tem precedência). Deixe em branco para desativar.",
     "addCustom": "Adicionar um modelo personalizado compatível com OpenAI",
-    "addCustomDescription": "Aponte para qualquer endpoint compatível com OpenAI: llama.cpp, LM Studio, vLLM, um Ollama local ou um gateway remoto.",
+    "addCustomDescription": "Aponte para qualquer endpoint compatível com OpenAI: llama.cpp, LM Studio, vLLM, um Ollama local ou um gateway remoto. Liste um modelo por linha (ou separados por vírgula) para adicionar vários de uma vez; todos compartilham o mesmo endpoint. A chave de API é opcional (a maioria dos servidores locais não precisa).",
     "customBaseUrl": "URL base",
     "customModels": "Modelos",
     "customDisplayName": "Nome de exibição",
@@ -157,7 +163,27 @@
     "checkAll": "Verificar tudo",
     "checking": "Verificando…",
     "editLabel": "Editar rótulo",
-    "saveLabel": "Salvar rótulo"
+    "saveLabel": "Salvar rótulo",
+    "unifiedKeyDescBefore": "Use-a como sua ",
+    "unifiedKeyDescAfter": " da OpenAI; ela autentica as solicitações a este proxy.",
+    "serverUnreachableBefore": "Não foi possível acessar o servidor em ",
+    "serverUnreachableAfter": ". Verifique se o backend está em execução. npm run dev inicia os dois, e os logs do servidor são impressos sob o prefixo server.",
+    "addProvider": "Adicionar uma chave de provedor",
+    "platform": "Plataforma",
+    "apiToken": "Token de API",
+    "noKeyNeededPlaceholder": "Nenhuma chave de API necessária",
+    "bearerTokenPlaceholder": "Token Bearer",
+    "pasteKeyPlaceholder": "cole a chave aqui",
+    "keylessHint": "Nenhuma chave de API necessária: o nível gratuito deste provedor é anônimo (com limite por IP).",
+    "enable": "Habilitar",
+    "noProviderKeys": "Ainda não há chaves de provedor. Adicione uma acima para começar o roteamento.",
+    "configuredProviders": "Provedores configurados",
+    "proxyToggleLabel": "proxy",
+    "keyCountOne": "{count} chave",
+    "keyCountOther": "{count} chaves",
+    "proxyEnvHintBefore": "Também configurável pela variável de ambiente ",
+    "proxyEnvHintAfter": " (tem precedência). Deixe em branco para desativar. Exemplos:",
+    "confirmRemove": "Confirmar?"
   },
   "status": {
     "healthy": "saudável",
@@ -188,7 +214,27 @@
     "pinnedRequests": "Solicitações fixadas",
     "pinnedHonored": "Respeitadas",
     "fallbackAttempts": "Tentativas de fallback",
-    "savingsHint": "Você economizou de fato {actual} $ nos últimos {range}. É quanto os mesmos tokens teriam custado em APIs pagas, com preço por modelo. O número exibido projeta seu ritmo dos {span} de dados mais recentes para 30 dias completos."
+    "savingsHint": "Você economizou de fato {actual} $ nos últimos {range}. É quanto os mesmos tokens teriam custado em APIs pagas, com preço por modelo. O número exibido projeta seu ritmo dos {span} de dados mais recentes para 30 dias completos.",
+    "savingsHintExact": "Você economizou de fato {actual} $ nos últimos {range}. É quanto os mesmos tokens teriam custado em APIs pagas, com preço por modelo. O número exibido é o seu total real de 30 dias.",
+    "requestsHintPinned": "{pinned} destas solicitações fixaram um modelo específico pelo nome. {honored} foram atendidas pelo modelo fixado; {failed} fizeram fallback para outro. As demais foram roteadas automaticamente.",
+    "requestsHintAuto": "Todas as solicitações deste período foram roteadas automaticamente; nenhum cliente fixou um modelo específico pelo nome.",
+    "rangeLabel24h": "24 horas",
+    "rangeLabel7d": "7 dias",
+    "rangeLabel30d": "30 dias",
+    "spanDays": "{count} dias",
+    "spanHours": "{count} horas",
+    "latencyMs": "Latência (ms)",
+    "latency": "Latência",
+    "pinned": "Fixado",
+    "inTokens": "Tokens de entrada",
+    "outTokens": "Tokens de saída",
+    "saved": "Economizado",
+    "message": "Mensagem",
+    "time": "Hora",
+    "perModelBreakdown": "Detalhamento por modelo",
+    "errorsByProvider": "Erros por provedor",
+    "recentErrors": "Erros recentes",
+    "noErrors": "Sem erros"
   },
   "playground": {
     "title": "Playground",
@@ -218,7 +264,8 @@
     "autoDescription": "model: \"auto\" em POST /v1/embeddings roteia para a família padrão. Nomear uma família (ou um id de modelo de provedor) fixa essa família; os provedores dentro dela são tentados em ordem.",
     "unsavedChanges": "Alterações não salvas",
     "saveChanges": "Salvar alterações",
-    "savingChanges": "Salvando…"
+    "savingChanges": "Salvando…",
+    "tokMax": "{tokens} tok máx."
   },
   "premium": {
     "title": "Premium",
@@ -254,7 +301,9 @@
     "recoverKey": "Recupere-a no site",
     "upsellTitle": "Vá para o ao vivo por US$ 19 por ano",
     "upsellDescription": "Novos modelos gratuitos no momento em que existem, em vez de no dia 1º do mês. Uma chave, todos os dispositivos. Cancele quando quiser; o roteador continua gratuito para sempre.",
-    "goPremium": "Assinar o Premium"
+    "goPremium": "Assinar o Premium",
+    "bundled": "incluído",
+    "planGeneric": "Premium"
   },
   "languages": {
     "en": "English",

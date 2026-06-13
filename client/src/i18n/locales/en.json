@@ -28,9 +28,10 @@
     "creating": "Creating…",
     "signingIn": "Signing in…",
     "loading": "Loading…",
-    "serverUnreachable": "Can't reach the server. Make sure the backend is running (npm run dev).",
     "newPasswordAutoComplete": "new-password",
-    "currentPasswordAutoComplete": "current-password"
+    "currentPasswordAutoComplete": "current-password",
+    "serverUnreachableBefore": "Can't reach the server. Make sure the backend is running (",
+    "serverUnreachableAfter": ")."
   },
   "common": {
     "save": "Save",
@@ -53,7 +54,14 @@
     "error": "Error",
     "noData": "No data yet",
     "unsavedChanges": "Unsaved changes",
-    "saveChanges": "Save changes"
+    "saveChanges": "Save changes",
+    "check": "Check",
+    "remove": "Remove",
+    "unknownError": "Unknown error",
+    "model": "Model",
+    "provider": "Provider",
+    "success": "Success",
+    "failures": "Failures"
   },
   "models": {
     "title": "Models",
@@ -114,9 +122,8 @@
   },
   "keys": {
     "pageTitle": "Keys",
-    "pageDescription": "Add and rotate the API keys for each free-tier provider. Stored encrypted with AES-256-GCM.",
+    "pageDescription": "Provider credentials and the unified API key your apps connect with.",
     "unifiedKey": "Your unified API key",
-    "unifiedKeyDescription": "Use this as your OpenAI api_key; it authenticates requests to this proxy.",
     "regenerate": "Regenerate",
     "showKey": "Show",
     "hideKey": "Hide",
@@ -140,9 +147,8 @@
     "saveProxy": "Save",
     "savingProxy": "Saving…",
     "proxyLoadFailed": "Could not load proxy settings.",
-    "proxyEnvHint": "Also configurable via the PROXY_URL environment variable (takes precedence). Leave blank to disable.",
     "addCustom": "Add a custom OpenAI-compatible model",
-    "addCustomDescription": "Point at any OpenAI-compatible endpoint: llama.cpp, LM Studio, vLLM, a local Ollama, or a remote gateway.",
+    "addCustomDescription": "Point at any OpenAI-compatible endpoint: llama.cpp, LM Studio, vLLM, a local Ollama, or a remote gateway. List one model per line (or comma-separated) to add several at once; they all share the one endpoint. The API key is optional (most local servers don't need one).",
     "customBaseUrl": "Base URL",
     "customModels": "Models",
     "customDisplayName": "Display name",
@@ -157,7 +163,27 @@
     "checkAll": "Check all",
     "checking": "Checking…",
     "editLabel": "Edit label",
-    "saveLabel": "Save label"
+    "saveLabel": "Save label",
+    "unifiedKeyDescBefore": "Use this as your OpenAI ",
+    "unifiedKeyDescAfter": "; it authenticates requests to this proxy.",
+    "serverUnreachableBefore": "Can't reach the server on ",
+    "serverUnreachableAfter": ". Make sure the backend is running. npm run dev starts both, and the server logs print under the server prefix.",
+    "addProvider": "Add a provider key",
+    "platform": "Platform",
+    "apiToken": "API token",
+    "noKeyNeededPlaceholder": "No API key needed",
+    "bearerTokenPlaceholder": "Bearer token",
+    "pasteKeyPlaceholder": "paste key here",
+    "keylessHint": "No API key needed: this provider's free tier is anonymous (rate-limited per IP).",
+    "enable": "Enable",
+    "noProviderKeys": "No provider keys yet. Add one above to start routing.",
+    "configuredProviders": "Configured providers",
+    "proxyToggleLabel": "proxy",
+    "keyCountOne": "{count} key",
+    "keyCountOther": "{count} keys",
+    "proxyEnvHintBefore": "Also configurable via the ",
+    "proxyEnvHintAfter": " environment variable (takes precedence). Leave blank to disable. Examples:",
+    "confirmRemove": "Confirm?"
   },
   "status": {
     "healthy": "healthy",
@@ -188,7 +214,27 @@
     "pinnedRequests": "Pinned requests",
     "pinnedHonored": "Honored",
     "fallbackAttempts": "Fallback attempts",
-    "savingsHint": "You actually saved ${actual} over the last {range}. That is what the same tokens would have cost on paid APIs, priced per model. The number shown projects your pace from the last {span} of data to a full 30 days."
+    "savingsHint": "You actually saved ${actual} over the last {range}. That is what the same tokens would have cost on paid APIs, priced per model. The number shown projects your pace from the last {span} of data to a full 30 days.",
+    "savingsHintExact": "You actually saved ${actual} over the last {range}. That is what the same tokens would have cost on paid APIs, priced per model. The number shown is your real 30-day total.",
+    "requestsHintPinned": "{pinned} of these requests pinned a specific model by name. {honored} were served by the pinned model; {failed} failed over to a different one. The rest were auto-routed.",
+    "requestsHintAuto": "All requests in this period were auto-routed; no client pinned a specific model by name.",
+    "rangeLabel24h": "24 hours",
+    "rangeLabel7d": "7 days",
+    "rangeLabel30d": "30 days",
+    "spanDays": "{count} days",
+    "spanHours": "{count} hours",
+    "latencyMs": "Latency (ms)",
+    "latency": "Latency",
+    "pinned": "Pinned",
+    "inTokens": "In tokens",
+    "outTokens": "Out tokens",
+    "saved": "Saved",
+    "message": "Message",
+    "time": "Time",
+    "perModelBreakdown": "Per-model breakdown",
+    "errorsByProvider": "Errors by provider",
+    "recentErrors": "Recent errors",
+    "noErrors": "No errors"
   },
   "playground": {
     "title": "Playground",
@@ -218,7 +264,8 @@
     "autoDescription": "model: \"auto\" on POST /v1/embeddings routes to the default family. Naming a family (or a provider model id) pins that family; providers inside it are tried in order.",
     "unsavedChanges": "Unsaved changes",
     "saveChanges": "Save changes",
-    "savingChanges": "Saving…"
+    "savingChanges": "Saving…",
+    "tokMax": "{tokens} tok max"
   },
   "premium": {
     "title": "Premium",
@@ -254,7 +301,9 @@
     "recoverKey": "Recover it on the website",
     "upsellTitle": "Go live for $19 a year",
     "upsellDescription": "New free models the moment they exist, instead of on the 1st of the month. One key, every device. Cancel anytime; the router stays free forever.",
-    "goPremium": "Go Premium"
+    "goPremium": "Go Premium",
+    "bundled": "bundled",
+    "planGeneric": "Premium"
   },
   "languages": {
     "en": "English",

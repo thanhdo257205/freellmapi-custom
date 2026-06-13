@@ -28,9 +28,10 @@
     "creating": "Creando…",
     "signingIn": "Iniciando sesión…",
     "loading": "Cargando…",
-    "serverUnreachable": "No se puede conectar con el servidor. Asegúrate de que el backend esté en ejecución (npm run dev).",
     "newPasswordAutoComplete": "new-password",
-    "currentPasswordAutoComplete": "current-password"
+    "currentPasswordAutoComplete": "current-password",
+    "serverUnreachableBefore": "No se puede conectar con el servidor. Asegúrate de que el backend esté en ejecución (",
+    "serverUnreachableAfter": ")."
   },
   "common": {
     "save": "Guardar",
@@ -53,7 +54,14 @@
     "error": "Error",
     "noData": "Aún no hay datos",
     "unsavedChanges": "Cambios sin guardar",
-    "saveChanges": "Guardar cambios"
+    "saveChanges": "Guardar cambios",
+    "check": "Comprobar",
+    "remove": "Quitar",
+    "unknownError": "Error desconocido",
+    "model": "Modelo",
+    "provider": "Proveedor",
+    "success": "Aciertos",
+    "failures": "Fallos"
   },
   "models": {
     "title": "Modelos",
@@ -114,9 +122,8 @@
   },
   "keys": {
     "pageTitle": "Claves",
-    "pageDescription": "Añade y rota las claves API de cada proveedor del nivel gratuito. Se almacenan cifradas con AES-256-GCM.",
+    "pageDescription": "Las credenciales de los proveedores y la clave API unificada con la que se conectan tus aplicaciones.",
     "unifiedKey": "Tu clave API unificada",
-    "unifiedKeyDescription": "Úsala como tu api_key de OpenAI; autentica las solicitudes a este proxy.",
     "regenerate": "Regenerar",
     "showKey": "Mostrar",
     "hideKey": "Ocultar",
@@ -140,9 +147,8 @@
     "saveProxy": "Guardar",
     "savingProxy": "Guardando…",
     "proxyLoadFailed": "No se pudieron cargar los ajustes del proxy.",
-    "proxyEnvHint": "También configurable mediante la variable de entorno PROXY_URL (tiene prioridad). Déjalo en blanco para desactivar.",
     "addCustom": "Añadir un modelo personalizado compatible con OpenAI",
-    "addCustomDescription": "Apunta a cualquier endpoint compatible con OpenAI: llama.cpp, LM Studio, vLLM, un Ollama local o una pasarela remota.",
+    "addCustomDescription": "Apunta a cualquier endpoint compatible con OpenAI: llama.cpp, LM Studio, vLLM, un Ollama local o una pasarela remota. Indica un modelo por línea (o separados por comas) para añadir varios a la vez; todos comparten el mismo endpoint. La clave API es opcional (la mayoría de los servidores locales no la necesitan).",
     "customBaseUrl": "URL base",
     "customModels": "Modelos",
     "customDisplayName": "Nombre visible",
@@ -157,7 +163,27 @@
     "checkAll": "Comprobar todo",
     "checking": "Comprobando…",
     "editLabel": "Editar etiqueta",
-    "saveLabel": "Guardar etiqueta"
+    "saveLabel": "Guardar etiqueta",
+    "unifiedKeyDescBefore": "Úsala como tu ",
+    "unifiedKeyDescAfter": " de OpenAI; autentica las solicitudes a este proxy.",
+    "serverUnreachableBefore": "No se puede conectar con el servidor en ",
+    "serverUnreachableAfter": ". Asegúrate de que el backend esté en ejecución. npm run dev inicia ambos, y los registros del servidor se imprimen con el prefijo server.",
+    "addProvider": "Añadir una clave de proveedor",
+    "platform": "Plataforma",
+    "apiToken": "Token de API",
+    "noKeyNeededPlaceholder": "No se necesita clave API",
+    "bearerTokenPlaceholder": "Token Bearer",
+    "pasteKeyPlaceholder": "pega la clave aquí",
+    "keylessHint": "No se necesita clave API: el nivel gratuito de este proveedor es anónimo (con límite por IP).",
+    "enable": "Habilitar",
+    "noProviderKeys": "Aún no hay claves de proveedor. Añade una arriba para empezar a enrutar.",
+    "configuredProviders": "Proveedores configurados",
+    "proxyToggleLabel": "proxy",
+    "keyCountOne": "{count} clave",
+    "keyCountOther": "{count} claves",
+    "proxyEnvHintBefore": "También configurable mediante la variable de entorno ",
+    "proxyEnvHintAfter": " (tiene prioridad). Déjalo en blanco para desactivar. Ejemplos:",
+    "confirmRemove": "¿Confirmar?"
   },
   "status": {
     "healthy": "correcto",
@@ -188,7 +214,27 @@
     "pinnedRequests": "Solicitudes fijadas",
     "pinnedHonored": "Respetadas",
     "fallbackAttempts": "Intentos de reserva",
-    "savingsHint": "Realmente ahorraste {actual} $ en los últimos {range}. Eso es lo que los mismos tokens habrían costado en APIs de pago, con precio por modelo. La cifra mostrada proyecta tu ritmo de los {span} de datos más recientes a 30 días completos."
+    "savingsHint": "Realmente ahorraste {actual} $ en los últimos {range}. Eso es lo que los mismos tokens habrían costado en APIs de pago, con precio por modelo. La cifra mostrada proyecta tu ritmo de los {span} de datos más recientes a 30 días completos.",
+    "savingsHintExact": "Realmente ahorraste {actual} $ en los últimos {range}. Eso es lo que los mismos tokens habrían costado en APIs de pago, con precio por modelo. La cifra mostrada es tu total real de 30 días.",
+    "requestsHintPinned": "{pinned} de estas solicitudes fijaron un modelo concreto por su nombre. {honored} fueron atendidas por el modelo fijado; {failed} conmutaron a otro. El resto se enrutaron automáticamente.",
+    "requestsHintAuto": "Todas las solicitudes de este periodo se enrutaron automáticamente; ningún cliente fijó un modelo concreto por su nombre.",
+    "rangeLabel24h": "24 horas",
+    "rangeLabel7d": "7 días",
+    "rangeLabel30d": "30 días",
+    "spanDays": "{count} días",
+    "spanHours": "{count} horas",
+    "latencyMs": "Latencia (ms)",
+    "latency": "Latencia",
+    "pinned": "Fijado",
+    "inTokens": "Tokens de entrada",
+    "outTokens": "Tokens de salida",
+    "saved": "Ahorrado",
+    "message": "Mensaje",
+    "time": "Hora",
+    "perModelBreakdown": "Desglose por modelo",
+    "errorsByProvider": "Errores por proveedor",
+    "recentErrors": "Errores recientes",
+    "noErrors": "Sin errores"
   },
   "playground": {
     "title": "Entorno de pruebas",
@@ -218,7 +264,8 @@
     "autoDescription": "model: «auto» en POST /v1/embeddings enruta a la familia predeterminada. Nombrar una familia (o un id de modelo de proveedor) fija esa familia; los proveedores dentro de ella se prueban en orden.",
     "unsavedChanges": "Cambios sin guardar",
     "saveChanges": "Guardar cambios",
-    "savingChanges": "Guardando…"
+    "savingChanges": "Guardando…",
+    "tokMax": "{tokens} tok máx."
   },
   "premium": {
     "title": "Premium",
@@ -254,7 +301,9 @@
     "recoverKey": "Recupérala en el sitio web",
     "upsellTitle": "Pásate al directo por 19 $ al año",
     "upsellDescription": "Nuevos modelos gratuitos en cuanto existen, en lugar de esperar al día 1 del mes. Una clave, todos tus dispositivos. Cancela cuando quieras; el enrutador sigue siendo gratis para siempre.",
-    "goPremium": "Hazte Premium"
+    "goPremium": "Hazte Premium",
+    "bundled": "incluido",
+    "planGeneric": "Premium"
   },
   "languages": {
     "en": "English",

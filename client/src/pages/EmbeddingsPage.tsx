@@ -120,9 +120,7 @@ export default function EmbeddingsPage() {
 
       <div className="space-y-6">
         <p className="text-xs text-muted-foreground">
-          <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono">model: "auto"</code> on{' '}
-          <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono">POST /v1/embeddings</code> routes to the
-          default family. Naming a family (or a provider model id) pins that family; providers inside it are tried in order.
+          {t('embeddings.autoDescription')}
         </p>
 
         {isLoading ? (
@@ -141,7 +139,7 @@ export default function EmbeddingsPage() {
                     </span>
                     {f.maxInputTokens && (
                       <span className="text-[11px] text-muted-foreground/70 tabular-nums">
-                        {formatTokens(f.maxInputTokens)} tok max
+                        {t('embeddings.tokMax', { tokens: formatTokens(f.maxInputTokens) })}
                       </span>
                     )}
                     {f.family === defaultFamily ? (

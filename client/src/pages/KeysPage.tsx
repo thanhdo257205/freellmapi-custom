@@ -129,7 +129,7 @@ function UnifiedKeySection() {
         <div>
           <h2 className="text-sm font-medium">{t('keys.unifiedKey')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Use this as your OpenAI <code className="font-mono">api_key</code>; it authenticates requests to this proxy.
+            {t('keys.unifiedKeyDescBefore')}<code className="font-mono">api_key</code>{t('keys.unifiedKeyDescAfter')}
           </p>
         </div>
         <Button
@@ -144,9 +144,7 @@ function UnifiedKeySection() {
 
       {isError ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
-          Can't reach the server on <code className="font-mono">{baseUrl.replace('/v1', '')}</code>. Make sure the
-          backend is running. <code className="font-mono">npm run dev</code> starts both, and the server logs print
-          under the <code className="font-mono">server</code> prefix.
+          {t('keys.serverUnreachableBefore')}<code className="font-mono">{baseUrl.replace('/v1', '')}</code>{t('keys.serverUnreachableAfter')}
         </div>
       ) : (
         <div className="flex items-center gap-2">
@@ -260,8 +258,7 @@ function ProxySettingsSection() {
 
       <div className="mt-3 text-[11px] text-muted-foreground">
         <p>
-          Also configurable via the <code className="font-mono">PROXY_URL</code> environment variable
-          (takes precedence). Leave blank to disable. Examples:
+          {t('keys.proxyEnvHintBefore')}<code className="font-mono">PROXY_URL</code>{t('keys.proxyEnvHintAfter')}
         </p>
         <ul className="list-disc list-inside mt-1 space-y-0.5">
           <li><code className="font-mono">socks5://127.0.0.1:1080</code></li>
@@ -324,9 +321,7 @@ function CustomProviderSection() {
     <section>
       <h2 className="text-sm font-medium mb-1">{t('keys.addCustom')}</h2>
       <p className="text-xs text-muted-foreground mb-3">
-        Point at any OpenAI-compatible endpoint: llama.cpp, LM Studio, vLLM, a local Ollama, or a remote
-        gateway. List one model per line (or comma-separated) to add several at once; they all share the
-        one endpoint. The API key is optional (most local servers don't need one).
+        {t('keys.addCustomDescription')}
       </p>
       <form onSubmit={submit} className="flex flex-wrap items-end gap-3 rounded-3xl border p-4 bg-card">
         <div className="space-y-1.5 flex-1 min-w-[240px]">
@@ -531,7 +526,7 @@ export default function KeysPage() {
     <div>
       <PageHeader
         title={t('keys.pageTitle')}
-        description="Provider credentials and the unified API key your apps connect with."
+        description={t('keys.pageDescription')}
         actions={
           keys.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => checkAll.mutate()} disabled={checkAll.isPending}>
@@ -547,13 +542,13 @@ export default function KeysPage() {
         <ProxySettingsSection />
 
         <section>
-          <h2 className="text-sm font-medium mb-3">Add a provider key</h2>
+          <h2 className="text-sm font-medium mb-3">{t('keys.addProvider')}</h2>
           <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 rounded-3xl border p-4 bg-card">
             <div className="space-y-1.5">
-              <Label className="text-xs">Platform</Label>
+              <Label className="text-xs">{t('keys.platform')}</Label>
               <Select value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
                 <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Select provider" />
+                  <SelectValue placeholder={t('keys.selectPlatform')} />
                 </SelectTrigger>
                 <SelectContent>
                   {PLATFORMS.map(p => (
@@ -578,18 +573,18 @@ export default function KeysPage() {
               </div>
             )}
             <div className="space-y-1.5 flex-1 min-w-[240px]">
-              <Label className="text-xs">{needsAccountId ? 'API token' : t('keys.customApiKey')}</Label>
+              <Label className="text-xs">{needsAccountId ? t('keys.apiToken') : t('keys.customApiKey')}</Label>
               <Input
                 type="password"
                 value={isKeyless ? '' : apiKey}
                 onChange={e => setApiKey(e.target.value)}
-                placeholder={isKeyless ? 'No API key needed' : (needsAccountId ? 'Bearer token' : 'paste key here')}
+                placeholder={isKeyless ? t('keys.noKeyNeededPlaceholder') : (needsAccountId ? t('keys.bearerTokenPlaceholder') : t('keys.pasteKeyPlaceholder'))}
                 className="font-mono text-xs"
                 disabled={isKeyless}
               />
               {isKeyless && (
                 <p className="text-[11px] text-muted-foreground">
-                  No API key needed: this provider's free tier is anonymous (rate-limited per IP).
+                  {t('keys.keylessHint')}
                 </p>
               )}
             </div>
@@ -603,7 +598,7 @@ export default function KeysPage() {
                   className="w-[160px]"
                 />
                 <Button type="submit" size="sm" disabled={!platform || (!isKeyless && !apiKey) || (needsAccountId && !accountId) || addKey.isPending}>
-                  {addKey.isPending ? t('keys.adding') : isKeyless ? 'Enable' : t('keys.addKey')}
+                  {addKey.isPending ? t('keys.adding') : isKeyless ? t('keys.enable') : t('keys.addKey')}
                 </Button>
               </div>
             </div>
@@ -616,13 +611,13 @@ export default function KeysPage() {
         <CustomProviderSection />
 
         <section>
-          <h2 className="text-sm font-medium mb-3">Configured providers</h2>
+          <h2 className="text-sm font-medium mb-3">{t('keys.configuredProviders')}</h2>
           {isLoading ? (
             <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : keys.length === 0 ? (
             <div className="rounded-3xl border border-dashed p-8 text-center">
               <p className="text-sm text-muted-foreground">
-                No provider keys yet. Add one above to start routing.
+                {t('keys.noProviderKeys')}
               </p>
             </div>
           ) : (
@@ -641,7 +636,7 @@ export default function KeysPage() {
                       <h3 className="text-sm font-medium">{group.label}</h3>
                       {proxyEnabled && (
                         <div className="inline-flex items-center gap-1.5 ml-1">
-                          <span className="text-[10px] text-muted-foreground">proxy</span>
+                          <span className="text-[10px] text-muted-foreground">{t('keys.proxyToggleLabel')}</span>
                           <Switch
                             checked={!bypassPlatforms.includes(group.value)}
                             onCheckedChange={() => toggleBypass.mutate(group.value)}
@@ -652,7 +647,7 @@ export default function KeysPage() {
                       <GetKeyLink url={group.url} />
                     </div>
                     <span className="text-xs text-muted-foreground tabular-nums">
-                      {group.keys.length} key{group.keys.length === 1 ? '' : 's'}
+                      {t(group.keys.length === 1 ? 'keys.keyCountOne' : 'keys.keyCountOther', { count: group.keys.length })}
                     </span>
                   </div>
                   <div className="rounded-2xl border divide-y bg-card overflow-hidden">
@@ -696,7 +691,7 @@ export default function KeysPage() {
                             </Button>
                           )}
                           <Button variant="ghost" size="xs" onClick={() => checkKey.mutate(k.id)} disabled={checkKey.isPending}>
-                            Check
+                            {t('common.check')}
                           </Button>
                           <Button
                             variant="ghost"
@@ -713,7 +708,7 @@ export default function KeysPage() {
                             }}
                             disabled={deleteKey.isPending}
                           >
-                            {confirmDeleteId === k.id ? 'Confirm?' : 'Remove'}
+                            {confirmDeleteId === k.id ? t('keys.confirmRemove') : t('common.remove')}
                           </Button>
                         </div>
                       )

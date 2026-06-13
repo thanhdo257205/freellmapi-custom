@@ -93,7 +93,7 @@ export default function PlaygroundPage() {
         const err = await res.json().catch(() => ({ error: { message: `HTTP ${res.status}` } }))
         setMessages([...newMessages, {
           role: 'assistant',
-          content: `${t('playground.errorPrefix')} ${err.error?.message ?? 'Unknown error'}`,
+          content: `${t('playground.errorPrefix')} ${err.error?.message ?? t('common.unknownError')}`,
         }])
         return
       }

@@ -35,8 +35,8 @@ interface PremiumStatus {
   siteUrl: string
 }
 
-function fmtWhen(ms: number | null): string {
-  if (!ms) return 'never'
+function fmtWhen(ms: number | null): string | null {
+  if (!ms) return null
   return new Date(ms).toLocaleString()
 }
 
@@ -123,10 +123,10 @@ export default function PremiumPage() {
                 <span className={`inline-block size-2 rounded-full ${live ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
                 <span className="text-sm font-medium">{live ? t('premium.liveFeed') : t('premium.monthlySnapshot')}</span>
                 <Badge variant="outline" className="font-mono text-[11px]">
-                  {catalog.appliedVersion ?? 'bundled'}
+                  {catalog.appliedVersion ?? t('premium.bundled')}
                 </Badge>
               </div>
-              <span className="text-xs text-muted-foreground">{t('premium.lastChecked', { when: fmtWhen(catalog.lastSyncMs) })}</span>
+              <span className="text-xs text-muted-foreground">{t('premium.lastChecked', { when: fmtWhen(catalog.lastSyncMs) ?? t('common.never') })}</span>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               {live
@@ -152,7 +152,7 @@ export default function PremiumPage() {
                       ? t('premium.planAnnual')
                       : license?.plan === 'lifetime'
                         ? t('premium.planLifetime')
-                        : 'Premium'}
+                        : t('premium.planGeneric')}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-destructive border-destructive/40">
