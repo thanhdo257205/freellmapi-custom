@@ -521,7 +521,7 @@ export default function FallbackPage() {
       <tr className="text-left text-muted-foreground border-b">
         <th className="py-2 pl-3 pr-1 w-6"></th>
         <th className="py-2 pr-2 w-6 text-center font-medium">#</th>
-        <th className="py-2 pr-3 font-medium">Model</th>
+        <th className="py-2 pr-3 font-medium">{t('models.columnModel')}</th>
         <th className="py-2 pr-3 font-medium">
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm" style={{ background: '#22c55e' }} />{t('strategies.weightReliability')}</span>
         </th>
@@ -532,16 +532,16 @@ export default function FallbackPage() {
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm" style={{ background: '#a855f7' }} />{t('strategies.weightIntelligence')}</span>
         </th>
         <th className="py-2 pr-3 font-medium">
-          <Tooltip text="Always-on guardrails: free-quota headroom × live rate-limit penalty. Below 1.0 means the model is being held back.">
-            <span className="underline decoration-dotted underline-offset-2 cursor-help">Guardrails</span>
+          <Tooltip text={t('strategies.guardrailsTooltip')}>
+            <span className="underline decoration-dotted underline-offset-2 cursor-help">{t('strategies.guardrails')}</span>
           </Tooltip>
         </th>
         <th className="py-2 pr-3 font-medium text-right">
-          <Tooltip text="Final routing score = weighted average of the three axes, multiplied by the guardrails. Higher routes first.">
+          <Tooltip text={t('strategies.scoreTooltip')}>
             <span className="underline decoration-dotted underline-offset-2 cursor-help">{t('strategies.scoreColumn')}</span>
           </Tooltip>
         </th>
-        <th className="py-2 pr-3 font-medium text-right">On</th>
+        <th className="py-2 pr-3 font-medium text-right">{t('models.columnOn')}</th>
       </tr>
     </thead>
   )
@@ -550,7 +550,7 @@ export default function FallbackPage() {
     <div>
       <PageHeader
         title={t('models.title')}
-        description="Pick a routing strategy. In Manual mode you drag to set the order; the other strategies route by live score across reliability, speed and intelligence."
+        description={t('strategies.description')}
         divider={false}
         actions={<ModelsTabs />}
       />
@@ -565,9 +565,11 @@ export default function FallbackPage() {
             <h2 className="text-sm font-medium">{t('strategies.title')}</h2>
             {routing?.weights && (
               <span className="text-xs text-muted-foreground tabular-nums">
-                reliability {Math.round(routing.weights.reliability * 100)}% ·
-                {' '}speed {Math.round(routing.weights.speed * 100)}% ·
-                {' '}intelligence {Math.round(routing.weights.intelligence * 100)}%
+                {t('strategies.weightsSummary', {
+                  reliability: Math.round(routing.weights.reliability * 100),
+                  speed: Math.round(routing.weights.speed * 100),
+                  intelligence: Math.round(routing.weights.intelligence * 100),
+                })}
               </span>
             )}
           </div>
@@ -598,9 +600,7 @@ export default function FallbackPage() {
           </div>
 
           <p className="mt-2 text-xs text-muted-foreground">
-            {isManual
-              ? 'Manual mode: requests follow the order below, top-to-bottom. Drag to reorder.'
-              : 'Scores update from live traffic. The order below is how requests are routed right now.'}
+            {isManual ? t('strategies.modeManualHint') : t('strategies.modeScoreHint')}
           </p>
         </section>
 
@@ -610,7 +610,7 @@ export default function FallbackPage() {
         ) : ordered.length === 0 ? (
           <div className="rounded-3xl border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              No models available. Add API keys on the <a href="/keys" className="underline text-foreground">Keys page</a> first.
+              {t('models.noModelsBefore')}<a href="/keys" className="underline text-foreground">{t('models.keysPageLink')}</a>{t('models.noModelsAfter')}
             </p>
           </div>
         ) : (
@@ -650,15 +650,15 @@ export default function FallbackPage() {
             {/* Floating action bar — fixed to the viewport so it's always visible,
                 sliding up when there are unsaved changes and back down on save/discard. */}
             <FloatingBar show={hasChanges}>
-              <span className="text-xs text-muted-foreground">Unsaved changes</span>
+              <span className="text-xs text-muted-foreground">{t('common.unsavedChanges')}</span>
               <Button variant="outline" size="sm" onClick={() => setLocalEntries(null)}>{t('common.discard')}</Button>
               <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? t('common.saving') : 'Save changes'}
+                {saveMutation.isPending ? t('common.saving') : t('common.saveChanges')}
               </Button>
             </FloatingBar>
 
             {unconfiguredPlatforms.length > 0 && (
-              <p className="text-xs text-muted-foreground">Hidden (no keys): {unconfiguredPlatforms.join(', ')}</p>
+              <p className="text-xs text-muted-foreground">{t('models.hiddenNoKeys', { platforms: unconfiguredPlatforms.join(', ') })}</p>
             )}
           </>
         )}

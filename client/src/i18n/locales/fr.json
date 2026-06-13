@@ -51,7 +51,9 @@
     "never": "jamais",
     "loading": "Chargement…",
     "error": "Erreur",
-    "noData": "Aucune donnée pour l'instant"
+    "noData": "Aucune donnée pour l'instant",
+    "unsavedChanges": "Modifications non enregistrées",
+    "saveChanges": "Enregistrer les modifications"
   },
   "models": {
     "title": "Modèles",
@@ -72,11 +74,17 @@
     "rpmLimit": "{count} rpm",
     "rpdLimit": "{count} rpd",
     "noKey": "aucune clé",
-    "dragToReorder": "Glisser pour réordonner"
+    "dragToReorder": "Glisser pour réordonner",
+    "columnModel": "Modèle",
+    "columnOn": "Actif",
+    "noModelsBefore": "Aucun modèle disponible. Ajoutez des clés API sur la ",
+    "keysPageLink": "page Clés",
+    "noModelsAfter": " au préalable.",
+    "hiddenNoKeys": "Masqués (aucune clé) : {platforms}"
   },
   "strategies": {
     "title": "Stratégie de routage",
-    "description": "Choisissez comment le routeur ordonne votre chaîne de repli. Le mode manuel suit l'ordre que vous définissez ; les autres sont des stratégies bandit qui apprennent du trafic réel.",
+    "description": "Choisissez une stratégie de routage. En mode manuel, glissez pour définir l'ordre ; les autres stratégies routent selon un score en direct combinant fiabilité, vitesse et intelligence.",
     "manual": "Manuel",
     "manualBlurb": "Routage dans l'ordre exact que vous définissez ci-dessous. Glissez les poignées pour réordonner. Aucun score ; la chaîne est suivie de haut en bas.",
     "balanced": "Équilibré",
@@ -96,7 +104,13 @@
     "weightSpeed": "Vitesse",
     "weightIntelligence": "Intelligence",
     "weightRequired": "Au moins une pondération doit être supérieure à zéro.",
-    "scoreColumn": "Score"
+    "scoreColumn": "Score",
+    "weightsSummary": "fiabilité {reliability}% · vitesse {speed}% · intelligence {intelligence}%",
+    "guardrails": "Garde-fous",
+    "guardrailsTooltip": "Garde-fous permanents : marge de quota gratuit × pénalité de limite de débit en direct. En dessous de 1,0, le modèle est freiné.",
+    "scoreTooltip": "Score de routage final = moyenne pondérée des trois axes, multipliée par les garde-fous. Le plus élevé est routé en premier.",
+    "modeManualHint": "Mode manuel : les requêtes suivent l'ordre ci-dessous, de haut en bas. Glissez pour réordonner.",
+    "modeScoreHint": "Les scores se mettent à jour à partir du trafic réel. L'ordre ci-dessous correspond au routage actuel."
   },
   "keys": {
     "pageTitle": "Clés",

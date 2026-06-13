@@ -51,7 +51,9 @@
     "never": "nunca",
     "loading": "Carregando…",
     "error": "Erro",
-    "noData": "Ainda não há dados"
+    "noData": "Ainda não há dados",
+    "unsavedChanges": "Alterações não salvas",
+    "saveChanges": "Salvar alterações"
   },
   "models": {
     "title": "Modelos",
@@ -72,11 +74,17 @@
     "rpmLimit": "{count} rpm",
     "rpdLimit": "{count} rpd",
     "noKey": "sem chave",
-    "dragToReorder": "Arraste para reordenar"
+    "dragToReorder": "Arraste para reordenar",
+    "columnModel": "Modelo",
+    "columnOn": "Ativo",
+    "noModelsBefore": "Nenhum modelo disponível. Adicione chaves de API na ",
+    "keysPageLink": "página Chaves",
+    "noModelsAfter": " primeiro.",
+    "hiddenNoKeys": "Ocultos (sem chave): {platforms}"
   },
   "strategies": {
     "title": "Estratégia de roteamento",
-    "description": "Escolha como o roteador ordena sua cadeia de fallback. O modo manual segue a ordem que você define; os demais são estratégias bandit que aprendem com o tráfego real.",
+    "description": "Escolha uma estratégia de roteamento. No modo manual, arraste para definir a ordem; as demais estratégias roteiam por pontuação ao vivo de confiabilidade, velocidade e inteligência.",
     "manual": "Manual",
     "manualBlurb": "Roteia na ordem exata que você definir abaixo. Arraste as alças para reordenar. Sem pontuação; a cadeia é seguida de cima para baixo.",
     "balanced": "Equilibrado",
@@ -96,7 +104,13 @@
     "weightSpeed": "Velocidade",
     "weightIntelligence": "Inteligência",
     "weightRequired": "Pelo menos um peso deve ser maior que zero.",
-    "scoreColumn": "Pontuação"
+    "scoreColumn": "Pontuação",
+    "weightsSummary": "confiabilidade {reliability}% · velocidade {speed}% · inteligência {intelligence}%",
+    "guardrails": "Proteções",
+    "guardrailsTooltip": "Proteções sempre ativas: margem de cota gratuita × penalidade de limite de taxa ao vivo. Abaixo de 1,0 o modelo está sendo contido.",
+    "scoreTooltip": "Pontuação final de roteamento = média ponderada dos três eixos, multiplicada pelas proteções. A maior é roteada primeiro.",
+    "modeManualHint": "Modo manual: as solicitações seguem a ordem abaixo, de cima para baixo. Arraste para reordenar.",
+    "modeScoreHint": "As pontuações são atualizadas com o tráfego real. A ordem abaixo é como as solicitações são roteadas agora."
   },
   "keys": {
     "pageTitle": "Chaves",

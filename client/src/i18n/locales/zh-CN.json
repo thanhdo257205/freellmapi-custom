@@ -51,7 +51,9 @@
     "never": "从未",
     "loading": "加载中…",
     "error": "错误",
-    "noData": "暂无数据"
+    "noData": "暂无数据",
+    "unsavedChanges": "未保存的更改",
+    "saveChanges": "保存更改"
   },
   "models": {
     "title": "模型",
@@ -72,11 +74,17 @@
     "rpmLimit": "每分钟 {count} 次",
     "rpdLimit": "每日 {count} 次",
     "noKey": "无密钥",
-    "dragToReorder": "拖动以重新排序"
+    "dragToReorder": "拖动以重新排序",
+    "columnModel": "模型",
+    "columnOn": "启用",
+    "noModelsBefore": "暂无可用模型。请先在",
+    "keysPageLink": "密钥页面",
+    "noModelsAfter": "添加 API 密钥。",
+    "hiddenNoKeys": "已隐藏（无密钥）：{platforms}"
   },
   "strategies": {
     "title": "路由策略",
-    "description": "选择路由器如何排列您的回退链。手动模式按您设置的顺序,其余为根据实时流量学习的策略。",
+    "description": "选择路由策略。手动模式下拖动即可设置顺序；其他策略会根据可靠性、速度和智能的实时评分进行路由。",
     "manual": "手动",
     "manualBlurb": "完全按下方设置的顺序路由。拖动手柄即可重新排序。不参与评分,按从上到下的顺序依次回退。",
     "balanced": "均衡",
@@ -96,7 +104,13 @@
     "weightSpeed": "速度",
     "weightIntelligence": "智能",
     "weightRequired": "至少一个权重必须大于零。",
-    "scoreColumn": "评分"
+    "scoreColumn": "评分",
+    "weightsSummary": "可靠性 {reliability}% · 速度 {speed}% · 智能 {intelligence}%",
+    "guardrails": "护栏",
+    "guardrailsTooltip": "始终生效的护栏：免费额度余量 × 实时限流惩罚。低于 1.0 表示该模型正在被抑制。",
+    "scoreTooltip": "最终路由得分 = 三个维度的加权平均值，再乘以护栏系数。得分越高越优先路由。",
+    "modeManualHint": "手动模式：请求按下方顺序从上到下依次尝试。拖动可重新排序。",
+    "modeScoreHint": "评分会根据实时流量更新。下方的顺序即为当前实际的路由顺序。"
   },
   "keys": {
     "pageTitle": "密钥",

@@ -51,7 +51,9 @@
     "never": "never",
     "loading": "Loading…",
     "error": "Error",
-    "noData": "No data yet"
+    "noData": "No data yet",
+    "unsavedChanges": "Unsaved changes",
+    "saveChanges": "Save changes"
   },
   "models": {
     "title": "Models",
@@ -72,11 +74,23 @@
     "rpmLimit": "{count} rpm",
     "rpdLimit": "{count} rpd",
     "noKey": "no key",
-    "dragToReorder": "Drag to reorder"
+    "dragToReorder": "Drag to reorder",
+    "columnModel": "Model",
+    "columnOn": "On",
+    "noModelsBefore": "No models available. Add API keys on the ",
+    "keysPageLink": "Keys page",
+    "noModelsAfter": " first.",
+    "hiddenNoKeys": "Hidden (no keys): {platforms}"
   },
   "strategies": {
     "title": "Routing strategy",
-    "description": "Pick how the router orders your fallback chain. Manual is the order you set; the rest are bandit strategies that learn from live traffic.",
+    "description": "Pick a routing strategy. In Manual mode you drag to set the order; the other strategies route by live score across reliability, speed and intelligence.",
+    "weightsSummary": "reliability {reliability}% · speed {speed}% · intelligence {intelligence}%",
+    "guardrails": "Guardrails",
+    "guardrailsTooltip": "Always-on guardrails: free-quota headroom × live rate-limit penalty. Below 1.0 means the model is being held back.",
+    "scoreTooltip": "Final routing score = weighted average of the three axes, multiplied by the guardrails. Higher routes first.",
+    "modeManualHint": "Manual mode: requests follow the order below, top-to-bottom. Drag to reorder.",
+    "modeScoreHint": "Scores update from live traffic. The order below is how requests are routed right now.",
     "manual": "Manual",
     "manualBlurb": "Route in the exact order you set below. Drag the handles to reorder. No scoring; the chain is followed top-to-bottom.",
     "balanced": "Balanced",
