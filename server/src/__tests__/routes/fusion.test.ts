@@ -3,8 +3,8 @@ import type { Express } from 'express';
 import { createApp } from '../../app.js';
 import { initDb, getDb, getUnifiedApiKey } from '../../db/index.js';
 import { mintDashboardToken, isGatedApiPath } from '../helpers/auth.js';
-import { isFusionModel, fusionConfigSchema } from '../../services/fusion.js';
-import { getOrderedFusionChain, setRoutingStrategy, getRoutingStrategy } from '../../services/router.js';
+import { isFusionModel, fusionConfigSchema, familyKey, diversifyChain } from '../../services/fusion.js';
+import { getOrderedFusionChain, setRoutingStrategy, getRoutingStrategy, type FusionCandidate } from '../../services/router.js';
 import { setCooldown } from '../../services/ratelimit.js';
 
 let dashToken = '';
@@ -407,5 +407,58 @@ describe('fusion route (/v1/chat/completions, model: "fusion")', () => {
     expect(text.trimEnd().endsWith('data: [DONE]')).toBe(true);
     // _fusion panel frames precede the final content frame.
     expect(text.indexOf('"event":"panel"')).toBeLessThan(text.indexOf('STREAMED SYNTHESIS'));
+  });
+});
+
+describe('familyKey', () => {
+  it('strips the provider prefix and any tag suffix to a bare family', () => {
+    expect(familyKey('qwen/qwen3-coder:free')).toBe('qwen3-coder');
+    expect(familyKey('qwen3-coder:480b')).toBe('qwen3-coder');
+    expect(familyKey('accounts/fireworks/models/qwen3-coder')).toBe('qwen3-coder');
+    expect(familyKey('GLM-4.7')).toBe('glm-4.7');
+  });
+});
+
+describe('diversifyChain', () => {
+  const cand = (platform: string, modelId: string): FusionCandidate => ({
+    modelDbId: 0, platform, modelId, displayName: modelId,
+    sizeLabel: 'Large', supportsVision: 0, supportsTools: 0,
+  });
+
+  it('prefers a fresh-family model over a same-family model on a new provider', () => {
+    // Strategy order: same family on two providers, then a different family.
+    // Platform-only diversity would panel [or/qwen3-coder, cb/qwen3-coder] —
+    // perspective-redundant. Family-aware diversity surfaces deepseek instead.
+    const ordered = [
+      cand('openrouter', 'qwen3-coder'),
+      cand('cerebras', 'qwen3-coder'),
+      cand('openrouter', 'deepseek-v3.2'),
+    ];
+    const out = diversifyChain(ordered).slice(0, 2).map(c => `${c.platform}/${c.modelId}`);
+    expect(out).toEqual(['openrouter/qwen3-coder', 'openrouter/deepseek-v3.2']);
+  });
+
+  it('keeps strategy order when every candidate is a distinct family', () => {
+    const ordered = [
+      cand('groq', 'llama-3.3-70b'),
+      cand('cerebras', 'qwen3-coder'),
+      cand('openrouter', 'deepseek-v3.2'),
+    ];
+    expect(diversifyChain(ordered).map(c => c.modelId)).toEqual(
+      ordered.map(c => c.modelId),
+    );
+  });
+
+  it('demotes a both-axes-seen duplicate to the back as last-resort refill', () => {
+    const ordered = [
+      cand('groq', 'llama-3.3-70b'),
+      cand('groq', 'llama-3.3-70b'), // same platform AND family → tier 3
+      cand('cerebras', 'qwen3-coder'),
+    ];
+    expect(diversifyChain(ordered).map(c => `${c.platform}/${c.modelId}`)).toEqual([
+      'groq/llama-3.3-70b',
+      'cerebras/qwen3-coder',
+      'groq/llama-3.3-70b',
+    ]);
   });
 });

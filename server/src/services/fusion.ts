@@ -345,14 +345,65 @@ async function runJudgeStreaming(
 }
 
 /**
+ * Collapse a provider-specific model id to its rough model FAMILY: drop the
+ * provider prefix (everything up to the last '/') and any ':tag'/':free' suffix,
+ * so e.g. `qwen/qwen3-coder:free` and `qwen3-coder:480b` map to one family.
+ * Deliberately a SIMPLE heuristic, not a maintained alias map — cross-provider
+ * id naming drifts constantly, so we only want a good-enough signal to avoid
+ * stacking the panel with the same model served under two providers.
+ */
+export function familyKey(modelId: string): string {
+  return modelId.toLowerCase().replace(/^.*\//, '').replace(/:.*$/, '');
+}
+
+/**
+ * Order a strategy-sorted servable chain for panel diversity along TWO axes:
+ * provider (platform) AND model family. Fusion's value comes from genuinely
+ * DIFFERENT perspectives (issue #326 spike: a panel only beats the best single
+ * model when its members actually disagree); the same model family served by
+ * two providers is platform-distinct but perspective-redundant — one viewpoint
+ * filling two slots.
+ *
+ * Two stable passes, each preserving the routing-strategy order it's handed:
+ *  1. Provider-first (the existing invariant): one model per distinct platform
+ *     before doubling up, so the panel spans different backends / failure
+ *     domains.
+ *  2. Family-dedup: within that provider-diverse order, demote any model whose
+ *     family already appeared — a fresh family takes the slot first, and the
+ *     redundant copy sinks to the refill tail rather than being dropped.
+ * Pure function of its input (unit-tested directly).
+ */
+export function diversifyChain(ordered: FusionCandidate[]): FusionCandidate[] {
+  // Pass 1 — provider diversity first, strategy order within.
+  const seenPlatform = new Set<string>();
+  const platformFirst: FusionCandidate[] = [];
+  const platformRest: FusionCandidate[] = [];
+  for (const c of ordered) {
+    if (seenPlatform.has(c.platform)) platformRest.push(c);
+    else { seenPlatform.add(c.platform); platformFirst.push(c); }
+  }
+  // Pass 2 — demote same-family duplicates so a fresh perspective wins the slot.
+  const seenFamily = new Set<string>();
+  const fresh: FusionCandidate[] = [];
+  const dupFamily: FusionCandidate[] = [];
+  for (const c of [...platformFirst, ...platformRest]) {
+    const fam = familyKey(c.modelId);
+    if (seenFamily.has(fam)) dupFamily.push(c);
+    else { seenFamily.add(fam); fresh.push(c); }
+  }
+  return [...fresh, ...dupFamily];
+}
+
+/**
  * Build the panel plus a refill queue:
  *  - `panel`    — the K models to run first (explicit list, or provider-diverse
  *                 picks off the strategy-sorted chain).
  *  - `overflow` — the next servable models from the chain, used to refill a slot
  *                 when a panel model fails outright (auto mode only; an explicit
  *                 panel is run as-is with no substitution).
- * Diversity = one model per platform first, so both the panel and its refills
- * span genuinely different backends before doubling up on a platform.
+ * Diversity = distinct provider AND model family first (see diversifyChain), so
+ * both the panel and its refills span genuinely different perspectives before
+ * doubling up on either axis.
  */
 function selectPanel(config: FusionConfig): { panel: FusionCandidate[]; overflow: FusionCandidate[]; dropped: string[] } {
   const maxK = panelMaxK();
@@ -376,17 +427,10 @@ function selectPanel(config: FusionConfig): { panel: FusionCandidate[]; overflow
   const k = Math.min(Math.max(config.k ?? panelDefaultK(), 1), maxK);
   const ordered = getOrderedFusionChain();
 
-  // Diversity-first ordering of the whole servable chain: one model per distinct
-  // platform (strategy order), then the remaining models. The first K are the
-  // panel; the rest are refill candidates that stay as diverse as possible.
-  const seenPlatform = new Set<string>();
-  const diverse: FusionCandidate[] = [];
-  const rest: FusionCandidate[] = [];
-  for (const c of ordered) {
-    if (seenPlatform.has(c.platform)) rest.push(c);
-    else { seenPlatform.add(c.platform); diverse.push(c); }
-  }
-  const full = [...diverse, ...rest];
+  // Diversity-first ordering of the whole servable chain along provider AND
+  // model family (see diversifyChain). The first K are the panel; the rest are
+  // refill candidates that stay as diverse as possible.
+  const full = diversifyChain(ordered);
 
   const panel = full.slice(0, k);
   // Cap refills so a run of failures can't sweep the entire catalog: try at most
