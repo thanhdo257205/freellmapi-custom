@@ -929,6 +929,16 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
           },
         });
       } else {
+        // Synchronous exhaustion: the router rejected every candidate before any
+        // upstream was tried, so this is the ONLY place the per-model disposition
+        // is recorded. Without it a routing_error 429 is opaque — you can't tell a
+        // genuinely dry pool from cooldowns/quota/context narrowing (issue _1).
+        const disposition: string[] = Array.isArray(err.diagnostics) ? err.diagnostics : [];
+        console.warn(
+          `[Proxy] routing exhausted (no upstream tried) req=${shortRequestId(requestGroupId)} ` +
+          `requested=${requestedModelLabel} candidates=${disposition.length}` +
+          (disposition.length ? `:\n  ${disposition.join('\n  ')}` : ''),
+        );
         res.status(err.status ?? 503).json({
           error: { message: err.message, type: 'routing_error' },
         });
