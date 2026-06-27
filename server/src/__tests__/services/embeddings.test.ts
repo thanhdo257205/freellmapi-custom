@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
 import { initDb, getDb } from '../../db/index.js';
 import { encrypt } from '../../lib/crypto.js';
 import { resolveFamily, getDefaultFamily, runEmbeddings, EmbeddingsError } from '../../services/embeddings.js';
@@ -191,6 +192,125 @@ describe('embeddings service', () => {
         WHERE created_at >= datetime('now', 'start of month') AND request_type = 'chat'
       `).get() as { used: number };
       expect(chatUsed.used).toBe(0);
+    });
+
+    describe('dimensions parameter (MRL truncation)', () => {
+      // Typed fetch mock so .mock.calls is properly indexed without `as any`.
+      // The cast on assignment to globalThis.fetch is unavoidable because
+      // globalThis.fetch in lib.dom is typed loosely; this is the same
+      // pattern the existing tests in this file use.
+      function mockFetch(impl: typeof fetch): MockedFunction<typeof fetch> {
+        const m = vi.fn(impl) as MockedFunction<typeof fetch>;
+        globalThis.fetch = m as unknown as typeof fetch;
+        return m;
+      }
+
+      it('forwards dimensions to NVIDIA NeMo NIM in the request body', async () => {
+        addKey('nvidia');
+        const fetchMock = mockFetch(async () => okEmbeddingResponse(1536));
+
+        await runEmbeddings('llama-nemotron-embed-vl-1b-v2', ['hello'], 1536);
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+        expect(body.dimensions).toBe(1536);
+        // The provider-prefixed model id (nvidia/<id>) is what reaches the upstream;
+        // the bare id is used internally for family resolution only.
+        expect(body.model).toBe('nvidia/llama-nemotron-embed-vl-1b-v2');
+        // input_type is still set on nvidia (existing behavior preserved)
+        expect(body.input_type).toBe('query');
+      });
+
+      it('omits dimensions from the upstream body when not requested', async () => {
+        addKey('nvidia');
+        const fetchMock = mockFetch(async () => okEmbeddingResponse(2048));
+
+        await runEmbeddings('llama-nemotron-embed-vl-1b-v2', ['hello']);
+
+        const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+        expect(body).not.toHaveProperty('dimensions');
+      });
+
+      it('returns the truncated dimension reported by the upstream response', async () => {
+        addKey('nvidia');
+        // Mock responds with 1536-dim vector even though model is native 2048.
+        mockFetch(async () => okEmbeddingResponse(1536));
+
+        const result = await runEmbeddings('llama-nemotron-embed-vl-1b-v2', ['hello'], 1536);
+        expect(result.dimensions).toBe(1536);
+        expect(result.vectors[0]).toHaveLength(1536);
+      });
+
+      it('forwards dimensions to the google provider', async () => {
+        // Use a family served by google. gemini-embedding-001 has google in its chain.
+        addKey('google');
+        const fetchMock = mockFetch(async () => okEmbeddingResponse(768));
+
+        await runEmbeddings('gemini-embedding-001', ['hello'], 768);
+
+        const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+        expect(body.dimensions).toBe(768);
+        expect(String(fetchMock.mock.calls[0][0])).toContain('generativelanguage.googleapis.com');
+      });
+
+      it('forwards dimensions to the github provider', async () => {
+        addKey('github');
+        const fetchMock = mockFetch(async () => okEmbeddingResponse(512));
+
+        await runEmbeddings('text-embedding-3-small', ['hello'], 512);
+
+        const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+        expect(body.dimensions).toBe(512);
+        expect(String(fetchMock.mock.calls[0][0])).toContain('models.github.ai');
+      });
+
+      it('forwards dimensions to the openrouter provider', async () => {
+        addKey('openrouter');
+        const fetchMock = mockFetch(async () => okEmbeddingResponse(1024));
+
+        await runEmbeddings('llama-nemotron-embed-vl-1b-v2', ['hello'], 1024);
+
+        const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+        expect(body.dimensions).toBe(1024);
+        expect(String(fetchMock.mock.calls[0][0])).toContain('openrouter.ai');
+      });
+
+      it('preserves byte-identical upstream bodies when dimensions is undefined', async () => {
+        // Snapshot the request body that runEmbeddings sends today, then verify
+        // that adding the dimensions parameter does not change ANY other field.
+        addKey('nvidia');
+        const beforeMock = mockFetch(async () => okEmbeddingResponse(2048));
+        await runEmbeddings('llama-nemotron-embed-vl-1b-v2', ['hello']);
+        const beforeBody = JSON.parse(String((beforeMock.mock.calls[0][1] as RequestInit).body));
+
+        addKey('nvidia'); // re-seed; previous run consumed nothing
+        const afterMock = mockFetch(async () => okEmbeddingResponse(2048));
+        await runEmbeddings('llama-nemotron-embed-vl-1b-v2', ['hello'], undefined);
+        const afterBody = JSON.parse(String((afterMock.mock.calls[0][1] as RequestInit).body));
+
+        expect(afterBody).toEqual(beforeBody);
+      });
+
+      it('passes dimensions through the family failover chain', async () => {
+        // nvidia is the primary for llama-nemotron-embed-vl-1b-v2; if it 429s,
+        // openrouter takes over. Both should see the dimensions parameter.
+        addKey('nvidia');
+        addKey('openrouter');
+        const fetchMock = mockFetch(async () => new Response('rate limited', { status: 429 }));
+        fetchMock.mockResolvedValueOnce(new Response('rate limited', { status: 429 }));
+        fetchMock.mockResolvedValueOnce(okEmbeddingResponse(1024));
+
+        const result = await runEmbeddings('llama-nemotron-embed-vl-1b-v2', ['hello'], 1024);
+        expect(result.platform).toBe('openrouter');
+        expect(result.dimensions).toBe(1024);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // Both attempts forwarded dimensions
+        const body1 = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+        const body2 = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+        expect(body1.dimensions).toBe(1024);
+        expect(body2.dimensions).toBe(1024);
+      });
     });
   });
 });
