@@ -353,39 +353,85 @@ function parseModelList(raw: string): string[] {
 function CustomProviderSection() {
   const { t } = useI18n()
   const queryClient = useQueryClient()
+  const [customType, setCustomType] = useState<'chat' | 'embedding' | 'image' | 'audio'>('chat')
   const [baseUrl, setBaseUrl] = useState('')
   const [model, setModel] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [family, setFamily] = useState('')
   const [apiKey, setApiKey] = useState('')
 
-  const models = parseModelList(model)
-  const multiple = models.length > 1
+  const models = customType === 'chat' ? parseModelList(model) : [model.trim()].filter(Boolean)
+  const multiple = customType === 'chat' && models.length > 1
+
+  const { data: embeddingsData } = useQuery<{ families: { family: string }[] }>({
+    queryKey: ['embeddings'],
+    queryFn: () => apiFetch('/api/embeddings'),
+  })
 
   const addCustom = useMutation({
-    mutationFn: (body: { baseUrl: string; models: string[]; displayName?: string; apiKey?: string }) =>
-      apiFetch('/api/keys/custom', { method: 'POST', body: JSON.stringify(body) }),
+    mutationFn: ({ path, body }: { path: string; body: Record<string, unknown> }) =>
+      apiFetch(path, { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['keys'] })
       queryClient.invalidateQueries({ queryKey: ['health'] })
       queryClient.invalidateQueries({ queryKey: ['fallback'] })
       queryClient.invalidateQueries({ queryKey: ['models'] })
+      queryClient.invalidateQueries({ queryKey: ['embeddings'] })
+      queryClient.invalidateQueries({ queryKey: ['media'] })
       setModel('')
       setDisplayName('')
+      setFamily('')
     },
   })
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!baseUrl || models.length === 0) return
-    // A single display name only makes sense for a lone model; with several
-    // ids the server names each model after its own id.
-    addCustom.mutate({
+    const common = {
       baseUrl,
-      models,
+      model: models[0],
       displayName: !multiple ? (displayName || undefined) : undefined,
       apiKey: apiKey || undefined,
+    }
+    if (customType === 'chat') {
+      addCustom.mutate({
+        path: '/api/keys/custom',
+        body: {
+          baseUrl,
+          models,
+          displayName: !multiple ? (displayName || undefined) : undefined,
+          apiKey: apiKey || undefined,
+        },
+      })
+      return
+    }
+    if (customType === 'embedding') {
+      addCustom.mutate({
+        path: '/api/embeddings/custom',
+        body: { ...common, family: family || undefined },
+      })
+      return
+    }
+    addCustom.mutate({
+      path: '/api/media/custom',
+      body: { ...common, modality: customType },
     })
   }
+
+  const modelPlaceholder = customType === 'chat'
+    ? 'qwen3:4b\nllama3:8b'
+    : customType === 'embedding'
+      ? 'text-embedding-3-small'
+      : customType === 'image'
+        ? 'gpt-image-1'
+        : 'gpt-4o-mini-tts'
+  const addLabel = customType === 'chat'
+    ? (multiple ? t('keys.addModels', { count: models.length }) : t('keys.addModel'))
+    : customType === 'embedding'
+      ? t('keys.addEmbeddingModel')
+      : customType === 'image'
+        ? t('keys.addImageModel')
+        : t('keys.addAudioModel')
 
   return (
     <section>
@@ -394,6 +440,20 @@ function CustomProviderSection() {
         {t('keys.addCustomDescription')}
       </p>
       <form onSubmit={submit} className="flex flex-wrap items-end gap-3 rounded-3xl border p-4 bg-card">
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('keys.customType')}</Label>
+          <Select value={customType} onValueChange={(v) => setCustomType(v as typeof customType)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="chat">{t('keys.customTypeChat')}</SelectItem>
+              <SelectItem value="embedding">{t('keys.customTypeEmbedding')}</SelectItem>
+              <SelectItem value="image">{t('keys.customTypeImage')}</SelectItem>
+              <SelectItem value="audio">{t('keys.customTypeAudio')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1.5 flex-1 min-w-[240px]">
           <Label className="text-xs">{t('keys.customBaseUrl')}</Label>
           <Input
@@ -404,12 +464,12 @@ function CustomProviderSection() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">{t('keys.customModels')}</Label>
+          <Label className="text-xs">{customType === 'chat' ? t('keys.customModels') : t('keys.customModel')}</Label>
           <Textarea
             value={model}
             onChange={e => setModel(e.target.value)}
-            placeholder={'qwen3:4b\nllama3:8b'}
-            rows={2}
+            placeholder={modelPlaceholder}
+            rows={customType === 'chat' ? 2 : 1}
             className="w-[200px] font-mono text-xs"
           />
         </div>
@@ -423,6 +483,17 @@ function CustomProviderSection() {
             className="w-[150px]"
           />
         </div>
+        {customType === 'embedding' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">{t('keys.customFamily')}</Label>
+            <Input
+              value={family}
+              onChange={e => setFamily(e.target.value)}
+              placeholder={embeddingsData?.families?.[0]?.family ?? t('keys.customFamilyPlaceholder')}
+              className="w-[190px] font-mono text-xs"
+            />
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label className="text-xs">{t('keys.customApiKey')}</Label>
           <Input
@@ -434,7 +505,7 @@ function CustomProviderSection() {
           />
         </div>
         <Button type="submit" size="sm" disabled={!baseUrl || models.length === 0 || addCustom.isPending}>
-          {addCustom.isPending ? t('keys.addingCustom') : multiple ? t('keys.addModels', { count: models.length }) : t('keys.addModel')}
+          {addCustom.isPending ? t('keys.addingCustom') : addLabel}
         </Button>
       </form>
       {addCustom.isError && (

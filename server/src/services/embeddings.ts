@@ -22,6 +22,7 @@ export interface EmbeddingModelRow {
   priority: number;
   enabled: number;
   quota_label: string;
+  key_id: number | null;
 }
 
 export interface EmbeddingsResult {
@@ -61,13 +62,40 @@ export function resolveFamily(model: string | undefined): string | null {
   return byModelId?.family ?? null;
 }
 
-function getPlatformKey(platform: string): string | null {
-  const row = getDb().prepare(
-    "SELECT encrypted_key, iv, auth_tag FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown') ORDER BY id LIMIT 1",
-  ).get(platform) as { encrypted_key: string; iv: string; auth_tag: string } | undefined;
-  if (!row) return null;
+interface ProviderCredential {
+  id: number;
+  key: string;
+  baseUrl: string | null;
+}
+
+function getProviderCredential(row: EmbeddingModelRow): ProviderCredential | null {
+  if (row.key_id != null) {
+    const keyRow = getDb().prepare(
+      "SELECT id, encrypted_key, iv, auth_tag, base_url FROM api_keys WHERE id = ? AND enabled = 1 AND status IN ('healthy', 'unknown') LIMIT 1",
+    ).get(row.key_id) as { id: number; encrypted_key: string; iv: string; auth_tag: string; base_url: string | null } | undefined;
+    if (!keyRow) return null;
+    try {
+      return {
+        id: keyRow.id,
+        key: decrypt(keyRow.encrypted_key, keyRow.iv, keyRow.auth_tag),
+        baseUrl: keyRow.base_url?.trim().replace(/\/+$/, '') ?? null,
+      };
+    } catch {
+      return null;
+    }
+  }
+  if (row.platform === 'custom') return null;
+
+  const keyRow = getDb().prepare(
+    "SELECT id, encrypted_key, iv, auth_tag, base_url FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown') ORDER BY id LIMIT 1",
+  ).get(row.platform) as { id: number; encrypted_key: string; iv: string; auth_tag: string; base_url: string | null } | undefined;
+  if (!keyRow) return null;
   try {
-    return decrypt(row.encrypted_key, row.iv, row.auth_tag);
+    return {
+      id: keyRow.id,
+      key: decrypt(keyRow.encrypted_key, keyRow.iv, keyRow.auth_tag),
+      baseUrl: keyRow.base_url?.trim().replace(/\/+$/, '') ?? null,
+    };
   } catch {
     return null;
   }
@@ -121,8 +149,21 @@ async function openAiStyleEmbed(
   };
 }
 
-async function callProvider(row: EmbeddingModelRow, key: string, inputs: string[], dimensions?: number): Promise<ProviderCallResult> {
+export async function probeEmbeddingDimensions(baseUrl: string, key: string, modelId: string): Promise<number> {
+  const out = await openAiStyleEmbed(`${baseUrl.trim().replace(/\/+$/, '')}/embeddings`, key, modelId, ['dimension probe']);
+  const vector = out.vectors[0];
+  if (!Array.isArray(vector) || vector.length === 0) {
+    throw new EmbeddingsError('upstream returned malformed embeddings', 502);
+  }
+  return vector.length;
+}
+
+async function callProvider(row: EmbeddingModelRow, credential: ProviderCredential, inputs: string[], dimensions?: number): Promise<ProviderCallResult> {
+  const { key } = credential;
   switch (row.platform) {
+    case 'custom':
+      if (!credential.baseUrl) throw new EmbeddingsError('custom embedding provider is missing base_url', 500);
+      return openAiStyleEmbed(`${credential.baseUrl}/embeddings`, key, row.model_id, inputs, {}, dimensions);
     case 'google':
       return openAiStyleEmbed('https://generativelanguage.googleapis.com/v1beta/openai/embeddings', key, row.model_id, inputs, {}, dimensions);
     case 'nvidia':
@@ -184,6 +225,7 @@ async function callProvider(row: EmbeddingModelRow, key: string, inputs: string[
 
 function logEmbeddingRequest(
   row: EmbeddingModelRow,
+  keyId: number | null,
   status: 'success' | 'error',
   inputTokens: number,
   latencyMs: number,
@@ -192,8 +234,8 @@ function logEmbeddingRequest(
   try {
     getDb().prepare(`
       INSERT INTO requests (platform, model_id, key_id, status, input_tokens, output_tokens, latency_ms, error, request_type)
-      VALUES (?, ?, NULL, ?, ?, 0, ?, ?, 'embedding')
-    `).run(row.platform, row.model_id, status, inputTokens, latencyMs, error);
+      VALUES (?, ?, ?, ?, ?, 0, ?, ?, 'embedding')
+    `).run(row.platform, row.model_id, keyId, status, inputTokens, latencyMs, error);
   } catch (e) {
     console.error('Failed to log embedding request:', e);
   }
@@ -225,16 +267,16 @@ export async function runEmbeddings(model: string | undefined, inputs: string[],
 
   let lastError: EmbeddingsError | null = null;
   for (const row of chain) {
-    const key = getPlatformKey(row.platform);
-    if (!key) continue; // no usable key for this provider — try the next one
+    const credential = getProviderCredential(row);
+    if (!credential) continue; // no usable key for this provider — try the next one
     const started = Date.now();
     try {
-      const out = await callProvider(row, key, inputs, dimensions);
+      const out = await callProvider(row, credential, inputs, dimensions);
       if (out.vectors.length !== inputs.length || out.vectors.some(v => !Array.isArray(v) || v.length === 0)) {
         throw new EmbeddingsError('upstream returned malformed embeddings', 502);
       }
       const tokens = out.inputTokens ?? estimateTokens(inputs);
-      logEmbeddingRequest(row, 'success', tokens, Date.now() - started, null);
+      logEmbeddingRequest(row, credential.id, 'success', tokens, Date.now() - started, null);
       return {
         family,
         platform: row.platform,
@@ -245,7 +287,7 @@ export async function runEmbeddings(model: string | undefined, inputs: string[],
       };
     } catch (err: any) {
       const e = err instanceof EmbeddingsError ? err : new EmbeddingsError(String(err?.message ?? err), 502);
-      logEmbeddingRequest(row, 'error', 0, Date.now() - started, e.message.slice(0, 300));
+      logEmbeddingRequest(row, credential.id, 'error', 0, Date.now() - started, e.message.slice(0, 300));
       lastError = e;
       // fall through to the next provider in the family
     }

@@ -5,6 +5,7 @@ import { getMigrationStatuses, runMigrations } from '../../../db/migrate/runner.
 import { up as runLegacyBaseline } from '../../../db/migrations/20260101_000000_legacy_baseline.js';
 
 const LEGACY_BASELINE_FILENAME = '20260101_000000_legacy_baseline.ts';
+const CUSTOM_PROVIDER_MODALITIES_FILENAME = '20260627_000001_custom_provider_modalities.ts';
 
 interface SchemaRow {
   type: string;
@@ -54,7 +55,10 @@ describe('migration round trip', () => {
       await runMigrations(db, 'up');
 
       expect(getEnabledZenDeadPromoCount(db)).toBe(0);
-      expect(getAppliedMigrationNames(db)).toEqual([LEGACY_BASELINE_FILENAME]);
+      expect(getAppliedMigrationNames(db)).toEqual([
+        LEGACY_BASELINE_FILENAME,
+        CUSTOM_PROVIDER_MODALITIES_FILENAME,
+      ]);
     } finally {
       db.close();
     }

@@ -111,6 +111,7 @@ export interface ApiKey {
   platform: Platform;
   label: string;
   maskedKey: string;
+  baseUrl: string | null;
   status: KeyStatus;
   enabled: boolean;
   createdAt: string;

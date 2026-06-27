@@ -14,6 +14,15 @@ function addKey(platform: string, raw = `${platform}-test-key`) {
   `).run(platform, encrypted, iv, authTag);
 }
 
+function addCustomKey(baseUrl: string, raw = 'custom-test-key'): number {
+  const { encrypted, iv, authTag } = encrypt(raw);
+  const row = getDb().prepare(`
+    INSERT INTO api_keys (platform, label, encrypted_key, iv, auth_tag, status, enabled, base_url)
+    VALUES ('custom', 'test', ?, ?, ?, 'healthy', 1, ?)
+  `).run(encrypted, iv, authTag, baseUrl);
+  return Number(row.lastInsertRowid);
+}
+
 function okEmbeddingResponse(dims: number, count = 1) {
   return new Response(JSON.stringify({
     data: Array.from({ length: count }, (_, i) => ({ index: i, embedding: Array(dims).fill(0.1) })),
@@ -52,6 +61,11 @@ describe('embeddings service', () => {
         "SELECT DISTINCT dimensions FROM embedding_models WHERE family = 'llama-nemotron-embed-vl-1b-v2'",
       ).all();
       expect(dims).toHaveLength(1);
+    });
+
+    it('adds key_id for custom embedding endpoint binding', () => {
+      const cols = (getDb().prepare('PRAGMA table_info(embedding_models)').all() as { name: string }[]).map(c => c.name);
+      expect(cols).toContain('key_id');
     });
   });
 
@@ -192,6 +206,29 @@ describe('embeddings service', () => {
         WHERE created_at >= datetime('now', 'start of month') AND request_type = 'chat'
       `).get() as { used: number };
       expect(chatUsed.used).toBe(0);
+    });
+
+    it('routes custom embeddings through the model-bound endpoint key', async () => {
+      const keyId = addCustomKey('http://127.0.0.1:8181/v1', 'custom-embed-key');
+      getDb().prepare(`
+        INSERT INTO embedding_models
+          (family, platform, model_id, display_name, dimensions, max_input_tokens, priority, enabled, quota_label, key_id)
+        VALUES ('local-embed', 'custom', 'local-embed-v1', 'Local Embed', 3, NULL, 1, 1, '', ?)
+      `).run(keyId);
+      const fetchMock = vi.fn(async () => okEmbeddingResponse(3));
+      globalThis.fetch = fetchMock as any;
+
+      const result = await runEmbeddings('local-embed', ['hello']);
+
+      expect(result.platform).toBe('custom');
+      expect(String(fetchMock.mock.calls[0][0])).toBe('http://127.0.0.1:8181/v1/embeddings');
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      const headers = init.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer custom-embed-key');
+      const body = JSON.parse(String(init.body));
+      expect(body.model).toBe('local-embed-v1');
+      const log = getDb().prepare("SELECT key_id FROM requests WHERE request_type = 'embedding' ORDER BY id DESC LIMIT 1").get() as { key_id: number };
+      expect(log.key_id).toBe(keyId);
     });
 
     describe('dimensions parameter (MRL truncation)', () => {
