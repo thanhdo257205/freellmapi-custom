@@ -12,7 +12,8 @@
     "switchDark": "Passer au thème sombre",
     "language": "Changer de langue",
     "switchToChinese": "Passer au chinois",
-    "switchToEnglish": "Passer à l'anglais"
+    "switchToEnglish": "Passer à l'anglais",
+    "modelsMenu": "Parcourir les types de modèles"
   },
   "auth": {
     "createYourAccount": "Créez votre compte",
@@ -418,5 +419,14 @@
     "copyUrl": "Copier l'URL de base",
     "copiedKey": "Clé API copiée dans le presse-papiers",
     "copiedUrl": "URL de base copiée dans le presse-papiers"
+  },
+  "palette": {
+    "title": "Palette de commandes",
+    "placeholder": "Rechercher des pages, modèles, actions…",
+    "empty": "Aucun résultat",
+    "groupPages": "Pages",
+    "groupActions": "Actions",
+    "groupModels": "Modèles",
+    "toggleTheme": "Basculer le mode sombre"
   }
 }

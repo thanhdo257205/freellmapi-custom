@@ -12,7 +12,8 @@
     "switchDark": "Switch to dark theme",
     "language": "Change language",
     "switchToChinese": "Switch to Chinese",
-    "switchToEnglish": "Switch to English"
+    "switchToEnglish": "Switch to English",
+    "modelsMenu": "Browse model types"
   },
   "auth": {
     "createYourAccount": "Create your account",
@@ -497,5 +498,14 @@
     "copyUrl": "Copy base URL",
     "copiedKey": "API key copied to clipboard",
     "copiedUrl": "Base URL copied to clipboard"
+  },
+  "palette": {
+    "title": "Command palette",
+    "placeholder": "Search pages, models, actions…",
+    "empty": "No results",
+    "groupPages": "Pages",
+    "groupActions": "Actions",
+    "groupModels": "Models",
+    "toggleTheme": "Toggle dark mode"
   }
 }

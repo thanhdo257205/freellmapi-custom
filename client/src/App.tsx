@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Languages, Menu, MoreHorizontal, Moon, Sun } from 'lucide-react'
+import { ChevronDown, Languages, Menu, MoreHorizontal, Moon, Search, Sun } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { AuthGate } from '@/components/auth-gate'
+import { CommandPalette, openCommandPalette } from '@/components/command-palette'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Toaster } from '@/components/toaster'
 import { I18nProvider, useI18n, SUPPORTED_LOCALES, type Locale } from '@/i18n'
@@ -55,6 +56,19 @@ const navItems = [
   { to: '/analytics', labelKey: 'nav.analytics' },
   { to: '/premium', labelKey: 'nav.premium' },
 ]
+
+// The five modality pages behind "Models"; surfaced in the nav dropdown and
+// the mobile submenu so Fusion/Embeddings/Image/Audio are discoverable without
+// first landing on the chat table.
+const modelItems = [
+  { to: '/models/chat', labelKey: 'models.chatModelsTab' },
+  { to: '/models/embeddings', labelKey: 'models.embeddingsTab' },
+  { to: '/models/image', labelKey: 'models.imageTab' },
+  { to: '/models/audio', labelKey: 'models.audioTab' },
+  { to: '/models/fusion', labelKey: 'models.fusionTab' },
+]
+
+const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform)
 
 function getPreferredDarkMode() {
   if (typeof window === 'undefined') {
@@ -172,16 +186,48 @@ function Navbar() {
           className="ml-10 hidden items-center gap-6 md:flex"
           style={isDesktopApp ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}
         >
-          {navItems.map((item) => (
-            <NavItem key={item.to} to={item.to}>
-              {t(item.labelKey)}
-            </NavItem>
-          ))}
+          {navItems.map((item) =>
+            item.to === '/models' ? (
+              // Split control: the label navigates, the chevron reveals the
+              // five modality pages hiding behind "Models".
+              <div key={item.to} className="flex items-center gap-0.5">
+                <NavItem to={item.to}>{t(item.labelKey)}</NavItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    aria-label={t('nav.modelsMenu')}
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <ChevronDown className="size-3.5" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-44">
+                    {modelItems.map((m) => (
+                      <DropdownMenuItem key={m.to} onClick={() => navigate(m.to)}>
+                        {t(m.labelKey)}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : (
+              <NavItem key={item.to} to={item.to}>
+                {t(item.labelKey)}
+              </NavItem>
+            ),
+          )}
         </nav>
         <div
           className="ml-auto hidden items-center gap-1 md:flex"
           style={isDesktopApp ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}
         >
+          <button
+            type="button"
+            onClick={openCommandPalette}
+            aria-label={t('palette.title')}
+            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+          >
+            <Search className="size-3.5" />
+            <kbd className="text-[10px] text-muted-foreground">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger
               className={buttonVariants({ variant: 'ghost', size: 'icon' })}
@@ -214,15 +260,32 @@ function Navbar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuGroup>
-                {navItems.map((item) => (
-                  <DropdownMenuItem
-                    key={item.to}
-                    onClick={() => navigate(item.to)}
-                    className={isActiveRoute(item.to) ? 'bg-accent text-accent-foreground font-medium' : undefined}
-                  >
-                    {t(item.labelKey)}
-                  </DropdownMenuItem>
-                ))}
+                {navItems.map((item) =>
+                  item.to === '/models' ? (
+                    <DropdownMenuSub key={item.to}>
+                      <DropdownMenuSubTrigger
+                        className={location.pathname.startsWith('/models') ? 'bg-accent text-accent-foreground font-medium' : undefined}
+                      >
+                        {t(item.labelKey)}
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {modelItems.map((m) => (
+                          <DropdownMenuItem key={m.to} onClick={() => navigate(m.to)}>
+                            {t(m.labelKey)}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : (
+                    <DropdownMenuItem
+                      key={item.to}
+                      onClick={() => navigate(item.to)}
+                      className={isActiveRoute(item.to) ? 'bg-accent text-accent-foreground font-medium' : undefined}
+                    >
+                      {t(item.labelKey)}
+                    </DropdownMenuItem>
+                  ),
+                )}
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
@@ -283,6 +346,7 @@ function App() {
               </PageBoundary>
             </main>
             <Toaster />
+            <CommandPalette />
           </div>
         </AuthGate>
       </BrowserRouter>

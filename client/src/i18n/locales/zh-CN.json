@@ -12,7 +12,8 @@
     "switchDark": "切换到深色主题",
     "language": "切换语言",
     "switchToChinese": "切换到中文",
-    "switchToEnglish": "Switch to English"
+    "switchToEnglish": "Switch to English",
+    "modelsMenu": "浏览模型类型"
   },
   "auth": {
     "createYourAccount": "创建账号",
@@ -441,5 +442,14 @@
     "copyUrl": "复制基础 URL",
     "copiedKey": "API 密钥已复制到剪贴板",
     "copiedUrl": "基础 URL 已复制到剪贴板"
+  },
+  "palette": {
+    "title": "命令面板",
+    "placeholder": "搜索页面、模型、操作…",
+    "empty": "无结果",
+    "groupPages": "页面",
+    "groupActions": "操作",
+    "groupModels": "模型",
+    "toggleTheme": "切换深色模式"
   }
 }
