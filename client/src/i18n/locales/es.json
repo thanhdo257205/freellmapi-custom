@@ -385,7 +385,8 @@
     "savingChanges": "Guardando…",
     "tokMax": "{tokens} tok máx.",
     "emptyTitle": "Aún no hay modelos de embeddings",
-    "emptyDesc": "Las familias de embeddings aparecen aquí cuando añades una clave de proveedor compatible con embeddings."
+    "emptyDesc": "Las familias de embeddings aparecen aquí cuando añades una clave de proveedor compatible con embeddings.",
+    "dragToReorder": "Arrastra para reordenar el proveedor"
   },
   "fusion": {
     "title": "Fusión",

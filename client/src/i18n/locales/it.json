@@ -385,7 +385,8 @@
     "savingChanges": "Salvataggio…",
     "tokMax": "{tokens} tok max",
     "emptyTitle": "Ancora nessun modello di embedding",
-    "emptyDesc": "Le famiglie di embedding compaiono qui quando aggiungi una chiave provider che supporta gli embedding."
+    "emptyDesc": "Le famiglie di embedding compaiono qui quando aggiungi una chiave provider che supporta gli embedding.",
+    "dragToReorder": "Trascina per riordinare il provider"
   },
   "fusion": {
     "title": "Fusion",

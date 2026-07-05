@@ -385,7 +385,8 @@
     "savingChanges": "Enregistrement…",
     "tokMax": "{tokens} tok max.",
     "emptyTitle": "Aucun modèle d'embeddings pour l'instant",
-    "emptyDesc": "Les familles d'embeddings apparaissent ici dès que vous ajoutez une clé de fournisseur prenant en charge les embeddings."
+    "emptyDesc": "Les familles d'embeddings apparaissent ici dès que vous ajoutez une clé de fournisseur prenant en charge les embeddings.",
+    "dragToReorder": "Glisser pour réorganiser le fournisseur"
   },
   "fusion": {
     "title": "Fusion",

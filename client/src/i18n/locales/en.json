@@ -403,7 +403,8 @@
     "savingChanges": "Saving…",
     "tokMax": "{tokens} tok max",
     "emptyTitle": "No embedding models yet",
-    "emptyDesc": "Embedding families appear here once you add a provider key that supports embeddings."
+    "emptyDesc": "Embedding families appear here once you add a provider key that supports embeddings.",
+    "dragToReorder": "Drag to reorder provider"
   },
   "fusion": {
     "title": "Fusion",
