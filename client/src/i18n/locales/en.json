@@ -266,6 +266,7 @@
     "customFamily": "Family",
     "customFamilyPlaceholder": "defaults to model id",
     "customApiKey": "API key",
+    "customCapabilities": "Capabilities",
     "addModel": "Add model",
     "modelAdded": "Model added",
     "addModels": "Add {count} models",
