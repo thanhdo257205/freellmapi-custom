@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { Db } from '../types.js';
 import * as legacyBaseline from '../migrations/20260101_000000_legacy_baseline.js';
 import * as customProviderModalities from '../migrations/20260627_000001_custom_provider_modalities.js';
 import * as catalogModelState from '../migrations/20260627_000002_catalog_model_state.js';
@@ -7,8 +7,8 @@ import * as githubGpt41Context from '../migrations/20260630_000001_github_gpt41_
 import * as requestClientInfo from '../migrations/20260706_000001_request_client_info.js';
 
 export interface MigrationModule {
-  up(db: Database.Database): void;
-  down(db: Database.Database): void;
+  up(db: Db): void;
+  down(db: Db): void;
 }
 
 export interface DefaultMigration {
