@@ -10,7 +10,7 @@ import type {
   ChatContent,
   ChatContentBlock,
 } from '@freellmapi/shared/types.js';
-import { routeRequest, recordRateLimitHit, recordSuccess, type RouteResult } from '../services/router.js';
+import { routeRequest, recordRateLimitHit, recordSuccess, hasOtherUsableKey, routingReserveTokens, type RouteResult } from '../services/router.js';
 import {
   recordRequest, recordTokens, setCooldown, getCooldownDurationForLimit,
   PAYMENT_REQUIRED_COOLDOWN_MS, MODEL_FORBIDDEN_COOLDOWN_MS, learnLimitFromError,
@@ -359,7 +359,9 @@ anthropicRouter.post('/messages', async (req: Request, res: Response) => {
   const estimatedInputTokens = estimateTokens(messages);
   const imageCount = messages.reduce((n, m) =>
     n + (Array.isArray(m.content) ? m.content.filter(b => (b as any)?.type === 'image_url').length : 0), 0);
-  const estimatedTotal = estimatedInputTokens + imageCount * IMAGE_TOKEN_ESTIMATE + max_tokens;
+  // Capped output reserve so a large max_tokens can't falsely exclude the model
+  // pool (#470); input + images count in full.
+  const estimatedTotal = estimatedInputTokens + imageCount * IMAGE_TOKEN_ESTIMATE + routingReserveTokens(max_tokens);
 
   // Resolve the model through the operator's Claude-family map (opus/sonnet/
   // haiku/default → auto | a pinned catalog model). A concrete catalog id pins
@@ -411,7 +413,9 @@ anthropicRouter.post('/messages', async (req: Request, res: Response) => {
         logRequest(route.platform, route.modelId, route.keyId, 'error', estimatedInputTokens, 0, Date.now() - start, 'empty completion (no content, no tool_calls)', null, pinnedModelId);
         skipKeys.add(`${route.platform}:${route.modelId}:${route.keyId}`);
         setCooldown(route.platform, route.modelId, route.keyId, cooldownFor(route, {}));
-        recordRateLimitHit(route.modelDbId);
+        // Only demote the whole model when no sibling key can still serve; the
+        // per-key cooldown already isolates this key's failure (#454).
+        if (!hasOtherUsableKey(route.modelDbId, route.keyId, skipKeys)) recordRateLimitHit(route.modelDbId);
         lastError = new Error(`empty completion from ${route.displayName}`);
         continue;
       }
@@ -465,7 +469,8 @@ anthropicRouter.post('/messages', async (req: Request, res: Response) => {
         if (isModelNotFoundError(err) || isModelAccessForbiddenError(err)) skipModels.add(route.modelDbId);
         skipKeys.add(`${route.platform}:${route.modelId}:${route.keyId}`);
         setCooldown(route.platform, route.modelId, route.keyId, cooldownFor(route, err));
-        recordRateLimitHit(route.modelDbId);
+        // Model-level penalty only when no sibling key can still serve (#454).
+        if (!hasOtherUsableKey(route.modelDbId, route.keyId, skipKeys)) recordRateLimitHit(route.modelDbId);
         learnLimitFromError(route.modelDbId, err);
         lastError = err;
         continue;

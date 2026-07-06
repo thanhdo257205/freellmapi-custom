@@ -3,7 +3,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { ChatMessage, ChatToolCall, ModelListRow } from '@freellmapi/shared/types.js';
-import { routeRequest, resolveRoutingChain, resolveModelGroupCandidates, recordRateLimitHit, recordSuccess, hasEnabledVisionModel, hasEnabledToolsModel, type RouteResult, type ResolvedChain, type ChainRow } from '../services/router.js';
+import { routeRequest, resolveRoutingChain, resolveModelGroupCandidates, recordRateLimitHit, recordSuccess, hasEnabledVisionModel, hasEnabledToolsModel, hasOtherUsableKey, routingReserveTokens, type RouteResult, type ResolvedChain, type ChainRow } from '../services/router.js';
 import { recordRequest, recordTokens, setCooldown, getCooldownDurationForLimit, PAYMENT_REQUIRED_COOLDOWN_MS, MODEL_FORBIDDEN_COOLDOWN_MS, learnLimitFromError } from '../services/ratelimit.js';
 import { runEmbeddings, EmbeddingsError } from '../services/embeddings.js';
 import { runImageGeneration, runSpeech, MediaError } from '../services/media.js';
@@ -660,7 +660,9 @@ proxyRouter.post('/completions', async (req: Request, res: Response) => {
   const stop = providerSafeStop(parsed.data.stop);
   const messages = completionPromptToMessages(prompt, suffix);
   const estimatedInputTokens = messages.reduce((sum, m) => sum + Math.ceil(contentToString(m.content).length / 4), 0);
-  const estimatedTotal = estimatedInputTokens + max_tokens;
+  // Cap the reserved output so a huge client-set max_tokens doesn't falsely
+  // exclude the whole model pool (#470); input is still counted in full.
+  const estimatedTotal = estimatedInputTokens + routingReserveTokens(max_tokens);
 
   let resolvedChain: ResolvedChain | undefined;
   if (isAutoModel(requestedModel)) {
@@ -920,7 +922,11 @@ proxyRouter.post('/completions', async (req: Request, res: Response) => {
                 tpd: route.tpdLimit,
               }, err.retryAfterMs),
         );
-        recordRateLimitHit(route.modelDbId);
+        // Only demote the whole model when this 429 exhausted it. If another
+        // enabled, non-cooldown key can still serve, the per-key cooldown alone
+        // isolates the failure; a model-level penalty would wrongly sink a
+        // model that's healthy on its other keys (#454).
+        if (!hasOtherUsableKey(route.modelDbId, route.keyId, skipKeys)) recordRateLimitHit(route.modelDbId);
         learnLimitFromError(route.modelDbId, err);
         lastError = err;
         continue;
@@ -1111,7 +1117,9 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
   const IMAGE_TOKEN_ESTIMATE = 1000;
   const imageCount = messages.reduce((n, m) =>
     n + (Array.isArray(m.content) ? m.content.filter(b => (b as { type?: string })?.type === 'image_url' || (b as { type?: string })?.type === 'image').length : 0), 0);
-  const estimatedTotal = estimatedInputTokens + imageCount * IMAGE_TOKEN_ESTIMATE + (max_tokens ?? 1000);
+  // The reserved output is capped (routingReserveTokens, #470) so an oversized
+  // client max_tokens can't starve routing; input + images count in full.
+  const estimatedTotal = estimatedInputTokens + imageCount * IMAGE_TOKEN_ESTIMATE + routingReserveTokens(max_tokens);
 
   // Tool-bearing requests must route to a model that emits STRUCTURED
   // tool_calls. A model without real function-calling support serializes the
@@ -1676,7 +1684,8 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
           logRequest(route.platform, route.modelId, route.keyId, 'error', estimatedInputTokens, 0, Date.now() - start, 'empty completion (no content, no tool_calls)', null, pinnedModelId);
           skipKeys.add(`${route.platform}:${route.modelId}:${route.keyId}`);
           setCooldown(route.platform, route.modelId, route.keyId, getCooldownDurationForLimit(route.platform, route.modelId, route.keyId, { rpd: route.rpdLimit, tpd: route.tpdLimit }));
-          recordRateLimitHit(route.modelDbId);
+          // Model-level penalty only when no sibling key can still serve (#454).
+          if (!hasOtherUsableKey(route.modelDbId, route.keyId, skipKeys)) recordRateLimitHit(route.modelDbId);
           lastError = new Error(`empty completion from ${route.displayName}`);
           continue;
         }
@@ -1790,7 +1799,8 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
                 tpd: route.tpdLimit,
               }, err.retryAfterMs),
         );
-        recordRateLimitHit(route.modelDbId);
+        // Model-level penalty only when no sibling key can still serve (#454).
+        if (!hasOtherUsableKey(route.modelDbId, route.keyId, skipKeys)) recordRateLimitHit(route.modelDbId);
         // Self-correct the catalog: if the provider reported its real ceiling in
         // the error body (e.g. a Groq 413 "tokens per minute (TPM): Limit 30000"),
         // persist it so the next request's pre-check fails over BEFORE the 413

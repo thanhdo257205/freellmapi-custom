@@ -136,6 +136,29 @@ export interface RouteResult {
   tpdLimit: number | null;
 }
 
+// ── Routing token estimate: cap the reserved OUTPUT, not the full max_tokens ──
+// A client can request a huge max_tokens (e.g. 32000) it will never actually
+// emit. Reserving that full amount against every model's context window and TPM
+// budget falsely excludes the entire free pool (TPM 6k-30k) and returns a bogus
+// "all models exhausted" 429 with ZERO upstream calls (#470). Providers meter
+// ACTUAL tokens, so under-reserving only risks an upstream 429/413 the retry
+// loop already handles, whereas over-reserving starves routing. For routing and
+// the context-window / TPM filters we therefore reserve at most this many output
+// tokens; the INPUT estimate is still counted in full so a genuinely large
+// prompt still (correctly) skips a too-small model.
+export const OUTPUT_RESERVE_CAP = 2000;
+
+/**
+ * Output tokens to reserve for routing/filter purposes: the requested max_tokens
+ * clamped to OUTPUT_RESERVE_CAP (default 1000 when the client omitted it, matching
+ * the historical fallback). Callers add this to their INPUT estimate before
+ * calling routeRequest / routePinnedModel.
+ */
+export function routingReserveTokens(requestedMaxTokens: number | null | undefined): number {
+  const requested = requestedMaxTokens != null && requestedMaxTokens > 0 ? requestedMaxTokens : 1000;
+  return Math.min(requested, OUTPUT_RESERVE_CAP);
+}
+
 // Round-robin index per platform
 const roundRobinIndex = new Map<string, number>();
 
@@ -388,12 +411,26 @@ interface ScoredEntry {
   score: number;
 }
 
+// Enabled + healthy/unknown key count per platform, for pooled-budget scaling.
+// This is the SAME filter both /api/fallback endpoints use (issue #456): the
+// monthly budget is a PER-KEY free-tier allowance, so N usable keys pool N× the
+// capacity. `monthlyUsedTokens` is already summed across all keys, so budget
+// must scale to match or the headroom guardrail damps a multi-key model to the
+// floor after just one account's worth of tokens.
+function usableKeyCountsByPlatform(db: Db): Map<string, number> {
+  const rows = db.prepare(
+    "SELECT platform, COUNT(*) AS count FROM api_keys WHERE enabled = 1 AND status IN ('healthy', 'unknown') GROUP BY platform"
+  ).all() as { platform: string; count: number }[];
+  return new Map(rows.map(r => [r.platform, r.count]));
+}
+
 function scoreChainEntry(
   entry: ChainRow,
   weights: RoutingWeights,
   intelMin: number,
   intelMax: number,
   sampled: boolean,
+  keyCounts: Map<string, number>,
 ): ScoredEntry {
   const stats = statsCache?.get(`${entry.platform}:${entry.model_id}`);
   const successes = stats?.successes ?? 0;
@@ -412,7 +449,10 @@ function scoreChainEntry(
     intelligenceComposite(entry.size_label, entry.intelligence_rank), intelMin, intelMax,
   );
 
-  const budget = parseBudget(entry.monthly_token_budget);
+  // Scale the per-key monthly budget by the usable key count for this platform,
+  // matching the pooled `monthlyUsedTokens` aggregate (#456). Math.max(1, …) so a
+  // model whose platform currently has no usable key isn't handed a 0 budget.
+  const budget = parseBudget(entry.monthly_token_budget) * Math.max(1, keyCounts.get(entry.platform) ?? 1);
   const headroom = headroomFactor(stats?.monthlyUsedTokens ?? 0, budget);
   const rl = rateLimitFactor(getPenalty(entry.model_db_id));
 
@@ -446,9 +486,10 @@ function orderChain(chain: ChainRow[], strategy: RoutingStrategy, sampled = true
   const composites = chain.map(e => intelligenceComposite(e.size_label, e.intelligence_rank));
   const intelMin = composites.length ? Math.min(...composites) : 0;
   const intelMax = composites.length ? Math.max(...composites) : 0;
+  const keyCounts = usableKeyCountsByPlatform(getDb());
 
   return chain
-    .map(e => ({ e, s: scoreChainEntry(e, weights, intelMin, intelMax, sampled).score }))
+    .map(e => ({ e, s: scoreChainEntry(e, weights, intelMin, intelMax, sampled, keyCounts).score }))
     // Higher score first; manual priority breaks ties so the chain still matters.
     .sort((a, b) => b.s - a.s || a.e.priority - b.e.priority)
     .map(x => x.e);
@@ -694,6 +735,56 @@ function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: 
   const summary = Object.entries(skipTally).map(([r, n]) => `${r}:${n}`).join(', ') || 'no usable key';
   diag?.push(`${label}: ${keys.length} key(s) — ${summary}`);
   return null;
+}
+
+/**
+ * Whether the model still has ANOTHER key that could serve it right now, given
+ * the key that just failed (excludingKeyId) and any keys already ruled out this
+ * request (skipKeys, in the "platform:modelId:keyId" form). Applies the same
+ * gates selectKeyForModel uses — enabled + healthy status, not on cooldown,
+ * under the provider daily cap, and under rpm/rpd/tpm/tpd — so the answer means
+ * "a real, dispatchable alternative exists".
+ *
+ * Used by the retry loops to decide whether a single key's 429 should demote the
+ * WHOLE model (the model-level 429 penalty). It should not: the per-key cooldown
+ * already isolates the failing key, so demoting the model while a sibling key can
+ * still serve it wrongly sinks a healthy model in the scorer (#454). We only
+ * record the model-level hit when this returns false — i.e. the 429 exhausted the
+ * model, not just one of its keys.
+ */
+export function hasOtherUsableKey(modelDbId: number, excludingKeyId: number, skipKeys?: Set<string>): boolean {
+  const db = getDb();
+  const m = db.prepare(`
+    SELECT platform, model_id, rpm_limit, rpd_limit, tpm_limit, tpd_limit, key_id
+      FROM models WHERE id = ?
+  `).get(modelDbId) as {
+    platform: string; model_id: string;
+    rpm_limit: number | null; rpd_limit: number | null;
+    tpm_limit: number | null; tpd_limit: number | null; key_id: number | null;
+  } | undefined;
+  if (!m) return false;
+
+  const limits = { rpm: m.rpm_limit, rpd: m.rpd_limit, tpm: m.tpm_limit, tpd: m.tpd_limit };
+  const keys = db.prepare(
+    "SELECT id FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown')"
+  ).all(m.platform) as { id: number }[];
+
+  for (const k of keys) {
+    if (k.id === excludingKeyId) continue;
+    // A custom model binds to exactly one endpoint key (#212); a sibling custom
+    // key cannot serve it, so it doesn't count as an alternative.
+    if (m.platform === 'custom' && m.key_id != null && k.id !== m.key_id) continue;
+    if (skipKeys?.has(`${m.platform}:${m.model_id}:${k.id}`)) continue;
+    if (isOnCooldown(m.platform, m.model_id, k.id)) continue;
+    if (!canUseProvider(m.platform, k.id)) continue;
+    if (!canMakeRequest(m.platform, m.model_id, k.id, limits)) continue;
+    // A per-minute token spike on the failed key doesn't mean a fresh key lacks
+    // headroom; a nominal 1-token probe only rules out a key already at its
+    // TPM/TPD ceiling.
+    if (!canUseTokens(m.platform, m.model_id, k.id, 1, limits)) continue;
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -954,18 +1045,21 @@ export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, pre
     // Context-aware routing: skip a model whose context window can't hold the
     // request, so a large prompt never selects a small-context model and burns
     // a failover hop on a 413 "request too large" (#167). Only enforced when we
-    // know the model's window; estimatedTokens already includes the reserved
-    // output (max_tokens), so this is the total-context check the model must
-    // satisfy. A 413 that slips through is still retryable downstream, and the
-    // failed model is put on cooldown — so this is a fast-path, not the only
-    // guard. If every model is too small, the loop falls through and the caller
-    // gets the normal "all models exhausted" error rather than a wasted sweep.
+    // know the model's window; estimatedTokens is the INPUT estimate plus a
+    // CAPPED output reserve (routingReserveTokens, #470), so a huge client-set
+    // max_tokens no longer excludes the model — the input must fit, not
+    // input+full max_tokens. A 413 that slips through is still retryable
+    // downstream, and the failed model is put on cooldown — so this is a
+    // fast-path, not the only guard. If every model is too small, the loop falls
+    // through and the caller gets the normal "all models exhausted" error rather
+    // than a wasted sweep.
     if (entry.context_window != null && estimatedTokens > entry.context_window) { diag.push(`${label}: context ${entry.context_window} < estimated ${estimatedTokens}`); continue; }
 
-    // Same guard for a model with a small per-minute token budget: a single
-    // request that alone exceeds tpm_limit can never fit one minute of quota and
+    // Same guard for a model with a small per-minute token budget: a request
+    // whose input alone exceeds tpm_limit can never fit one minute of quota and
     // returns a guaranteed 413 (e.g. Groq gpt-oss-120b: 131k context but 8k TPM).
-    // estimatedTokens already includes reserved output, mirroring the check above.
+    // estimatedTokens carries the same capped output reserve, mirroring the
+    // check above (#470).
     if (entry.tpm_limit != null && estimatedTokens > entry.tpm_limit) { diag.push(`${label}: tpm_limit ${entry.tpm_limit} < estimated ${estimatedTokens}`); continue; }
 
     // Key selection + accounting pre-checks for this one model. Returns the
@@ -1021,9 +1115,10 @@ export function getRoutingScores(): { strategy: RoutingStrategy; weights: Routin
   const composites = chain.map(e => intelligenceComposite(e.size_label, e.intelligence_rank));
   const intelMin = composites.length ? Math.min(...composites) : 0;
   const intelMax = composites.length ? Math.max(...composites) : 0;
+  const keyCounts = usableKeyCountsByPlatform(db);
 
   const scores: RoutingScore[] = chain.map(entry => {
-    const scored = scoreChainEntry(entry, weights, intelMin, intelMax, false);
+    const scored = scoreChainEntry(entry, weights, intelMin, intelMax, false, keyCounts);
     const stats = statsCache?.get(`${entry.platform}:${entry.model_id}`);
     return {
       modelDbId: entry.model_db_id,
