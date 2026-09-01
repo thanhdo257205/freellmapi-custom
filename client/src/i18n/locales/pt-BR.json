@@ -1026,7 +1026,8 @@
       "dsh": "O harness da DeepSeek, que guarda cada provedor como uma rota que você pode trocar.",
       "mimo": "O agente de terminal da Xiaomi, um fork do OpenCode que aceita qualquer provedor compatível com OpenAI.",
       "cursor": "O editor centrado em IA; ele passa pela nuvem da Cursor, então precisa de uma URL pública.",
-      "generic": "Qualquer outra ferramenta que fale a API da OpenAI, configurada à mão com URL base e chave."
+      "generic": "Qualquer outra ferramenta que fale a API da OpenAI, configurada à mão com URL base e chave.",
+      "atomcode": "O agente de terminal da AtomGit, escrito em Rust, que aceita qualquer endpoint compatível com OpenAI."
     }
   },
   "update": {
