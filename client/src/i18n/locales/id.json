@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Permintaan per agen",
     "sortBy": "Urutkan berdasarkan {column}",
-    "sortHint": "Pengurutan berlaku untuk {count} baris yang dimuat"
+    "sortHint": "Pengurutan berlaku untuk {count} baris yang dimuat",
+    "cacheHitRate": "Rasio hit cache",
+    "cacheSavedTokens": "{tokens} token dihemat",
+    "cacheHitRateHint": "{hits} hit vs {misses} miss sejak server dijalankan · {requests} panggilan penyedia dihindari"
   },
   "logs": {
     "title": "Log",

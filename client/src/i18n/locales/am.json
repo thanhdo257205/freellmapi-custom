@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "ጥያቄዎች በወኪል",
     "sortBy": "በ{column} ደርድር",
-    "sortHint": "መደርደሩ የሚሠራው በተጫኑት {count} ረድፎች ላይ ብቻ ነው"
+    "sortHint": "መደርደሩ የሚሠራው በተጫኑት {count} ረድፎች ላይ ብቻ ነው",
+    "cacheHitRate": "የመሸጎጫ ግኝት መጠን",
+    "cacheSavedTokens": "{tokens} ቶከን ተቆጥቧል",
+    "cacheHitRateHint": "አገልጋዩ ከተጀመረ ወዲህ {hits} ግኝት እና {misses} ስህተት · {requests} የአቅራቢ ጥሪዎች ተስወግደዋል"
   },
   "logs": {
     "title": "መዝገቦች",

@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Zahtjevi po agentu",
     "sortBy": "Sortiraj po: {column}",
-    "sortHint": "Sortiranje vrijedi za {count} učitanih redaka"
+    "sortHint": "Sortiranje vrijedi za {count} učitanih redaka",
+    "cacheHitRate": "Stopa pogodaka predmemorije",
+    "cacheSavedTokens": "Ušteđeno {tokens} tokena",
+    "cacheHitRateHint": "{hits} pogodaka naspram {misses} promašaja od pokretanja poslužitelja · izbjegnuto {requests} poziva pružatelju"
   },
   "logs": {
     "title": "Logovi",

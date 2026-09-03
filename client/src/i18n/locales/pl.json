@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Żądania według agenta",
     "sortBy": "Sortuj według: {column}",
-    "sortHint": "Sortowanie dotyczy {count} załadowanych wierszy"
+    "sortHint": "Sortowanie dotyczy {count} załadowanych wierszy",
+    "cacheHitRate": "Współczynnik trafień pamięci podręcznej",
+    "cacheSavedTokens": "Zaoszczędzono {tokens} tokenów",
+    "cacheHitRateHint": "{hits} trafień wobec {misses} chybień od startu serwera · uniknięto {requests} wywołań dostawcy"
   },
   "logs": {
     "title": "Logi",

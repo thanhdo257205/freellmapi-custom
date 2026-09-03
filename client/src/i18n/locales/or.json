@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "ଏଜେଣ୍ଟ ଦ୍ୱାରା ଅନୁରୋଧଗୁଡିକ",
     "sortBy": "{column} ଅନୁସାରେ ସଜାନ୍ତୁ",
-    "sortHint": "ସଜାଣି କେବଳ ଲୋଡ୍ ହୋଇଥିବା {count} ଧାଡ଼ି ପାଇଁ ପ୍ରଯୁଜ୍ୟ"
+    "sortHint": "ସଜାଣି କେବଳ ଲୋଡ୍ ହୋଇଥିବା {count} ଧାଡ଼ି ପାଇଁ ପ୍ରଯୁଜ୍ୟ",
+    "cacheHitRate": "କ୍ୟାଶ୍ ହିଟ୍ ହାର",
+    "cacheSavedTokens": "{tokens} ଟୋକେନ୍ ସଞ୍ଚୟ",
+    "cacheHitRateHint": "ସର୍ଭର ଆରମ୍ଭ ହେବା ପରଠାରୁ {hits} ହିଟ୍ ବନାମ {misses} ମିସ୍ · {requests} ପ୍ରଦାତା କଲ୍ ଏଡ଼ାଯାଇଛି"
   },
   "logs": {
     "title": "ଲଗ",

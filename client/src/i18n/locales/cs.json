@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Požadavky podle agenta",
     "sortBy": "Seřadit podle: {column}",
-    "sortHint": "Řazení se vztahuje na {count} načtených řádků"
+    "sortHint": "Řazení se vztahuje na {count} načtených řádků",
+    "cacheHitRate": "Úspěšnost cache",
+    "cacheSavedTokens": "Ušetřeno {tokens} tokenů",
+    "cacheHitRateHint": "{hits} zásahů proti {misses} minutím od spuštění serveru · ušetřeno {requests} volání poskytovatele"
   },
   "logs": {
     "title": "Logy",

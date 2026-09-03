@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Agent bo'yicha so'rovlar",
     "sortBy": "{column} bo‘yicha saralash",
-    "sortHint": "Saralash faqat yuklangan {count} ta qatorga qo‘llanadi"
+    "sortHint": "Saralash faqat yuklangan {count} ta qatorga qo‘llanadi",
+    "cacheHitRate": "Kesh muvaffaqiyat darajasi",
+    "cacheSavedTokens": "{tokens} token tejaldi",
+    "cacheHitRateHint": "Server ishga tushganidan beri {hits} muvaffaqiyat, {misses} o‘tkazib yuborish · {requests} ta provayder so‘rovi tejaldi"
   },
   "logs": {
     "title": "Jurnal",

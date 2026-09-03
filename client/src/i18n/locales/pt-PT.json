@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Pedidos por agente",
     "sortBy": "Ordenar por {column}",
-    "sortHint": "A ordenação aplica-se às {count} linhas carregadas"
+    "sortHint": "A ordenação aplica-se às {count} linhas carregadas",
+    "cacheHitRate": "Taxa de acerto da cache",
+    "cacheSavedTokens": "{tokens} tokens poupados",
+    "cacheHitRateHint": "{hits} acertos contra {misses} falhas desde o arranque do servidor · {requests} chamadas ao fornecedor evitadas"
   },
   "logs": {
     "title": "Registos",

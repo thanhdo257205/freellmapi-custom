@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Requêtes par agent",
     "sortBy": "Trier par {column}",
-    "sortHint": "Le tri s'applique aux {count} lignes chargées"
+    "sortHint": "Le tri s'applique aux {count} lignes chargées",
+    "cacheHitRate": "Taux de succès du cache",
+    "cacheSavedTokens": "{tokens} jetons économisés",
+    "cacheHitRateHint": "{hits} succès contre {misses} échecs depuis le démarrage du serveur · {requests} appels au fournisseur évités"
   },
   "logs": {
     "title": "Journaux",

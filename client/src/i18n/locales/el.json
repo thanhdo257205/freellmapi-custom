@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Αιτήματα ανά πράκτορα",
     "sortBy": "Ταξινόμηση κατά {column}",
-    "sortHint": "Η ταξινόμηση ισχύει για τις {count} φορτωμένες γραμμές"
+    "sortHint": "Η ταξινόμηση ισχύει για τις {count} φορτωμένες γραμμές",
+    "cacheHitRate": "Ποσοστό ευστοχίας cache",
+    "cacheSavedTokens": "Εξοικονομήθηκαν {tokens} tokens",
+    "cacheHitRateHint": "{hits} ευστοχίες έναντι {misses} αστοχιών από την εκκίνηση του διακομιστή · αποφεύχθηκαν {requests} κλήσεις παρόχου"
   },
   "logs": {
     "title": "Καταγραφές",

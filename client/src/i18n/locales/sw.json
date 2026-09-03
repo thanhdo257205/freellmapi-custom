@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Maombi kwa kila wakala",
     "sortBy": "Panga kwa {column}",
-    "sortHint": "Upangaji unatumika kwa safu {count} zilizopakiwa"
+    "sortHint": "Upangaji unatumika kwa safu {count} zilizopakiwa",
+    "cacheHitRate": "Kiwango cha mafanikio ya akiba",
+    "cacheSavedTokens": "Tokeni {tokens} zimehifadhiwa",
+    "cacheHitRateHint": "Mafanikio {hits} dhidi ya makosa {misses} tangu seva ianze · miito {requests} kwa mtoa huduma imeepukwa"
   },
   "logs": {
     "title": "Kumbukumbu",

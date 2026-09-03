@@ -716,7 +716,10 @@
     "ttft": "Saukewa: TTFT",
     "requestsByAgent": "Bukatu ta kowane wakili",
     "sortBy": "Tsara bisa {column}",
-    "sortHint": "Tsarawar ta shafi layuka {count} da aka ɗora kawai"
+    "sortHint": "Tsarawar ta shafi layuka {count} da aka ɗora kawai",
+    "cacheHitRate": "Yawan nasarar cache",
+    "cacheSavedTokens": "An adana tokens {tokens}",
+    "cacheHitRateHint": "Nasara {hits} kan rashi {misses} tun farawar sabar · an guji kiran mai bayarwa {requests}"
   },
   "logs": {
     "title": "Logs",

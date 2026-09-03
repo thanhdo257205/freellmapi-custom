@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Permintaan mengikut ejen",
     "sortBy": "Isih mengikut {column}",
-    "sortHint": "Pengisihan hanya digunakan pada {count} baris yang dimuatkan"
+    "sortHint": "Pengisihan hanya digunakan pada {count} baris yang dimuatkan",
+    "cacheHitRate": "Kadar hit cache",
+    "cacheSavedTokens": "{tokens} token dijimatkan",
+    "cacheHitRateHint": "{hits} hit berbanding {misses} miss sejak pelayan dimulakan · {requests} panggilan pembekal dielakkan"
   },
   "logs": {
     "title": "Log",

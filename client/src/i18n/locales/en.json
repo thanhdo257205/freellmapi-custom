@@ -750,7 +750,10 @@
     "requestedModel": "Requested model",
     "ttft": "TTFT",
     "sortBy": "Sort by {column}",
-    "sortHint": "Sorting applies to the {count} loaded rows"
+    "sortHint": "Sorting applies to the {count} loaded rows",
+    "cacheHitRate": "Cache hit rate",
+    "cacheSavedTokens": "{tokens} tokens saved",
+    "cacheHitRateHint": "{hits} hits vs {misses} misses since the server started · {requests} provider calls avoided"
   },
   "logs": {
     "title": "Logs",

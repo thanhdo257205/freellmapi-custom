@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Požiadavky podľa agenta",
     "sortBy": "Zoradiť podľa: {column}",
-    "sortHint": "Zoradenie sa vzťahuje na {count} načítaných riadkov"
+    "sortHint": "Zoradenie sa vzťahuje na {count} načítaných riadkov",
+    "cacheHitRate": "Úspešnosť vyrovnávacej pamäte",
+    "cacheSavedTokens": "Ušetrených {tokens} tokenov",
+    "cacheHitRateHint": "{hits} zásahov oproti {misses} minutiam od spustenia servera · ušetrených {requests} volaní poskytovateľa"
   },
   "logs": {
     "title": "Logy",

@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "એજન્ટ પ્રમાણે વિનંતીઓ",
     "sortBy": "{column} પ્રમાણે ગોઠવો",
-    "sortHint": "ગોઠવણી ફક્ત લોડ થયેલી {count} પંક્તિઓ પર લાગુ થાય છે"
+    "sortHint": "ગોઠવણી ફક્ત લોડ થયેલી {count} પંક્તિઓ પર લાગુ થાય છે",
+    "cacheHitRate": "કૅશ હિટ રેટ",
+    "cacheSavedTokens": "{tokens} ટોકન બચ્યા",
+    "cacheHitRateHint": "સર્વર શરૂ થયા પછી {hits} હિટ સામે {misses} મિસ · {requests} પ્રોવાઇડર કૉલ ટાળ્યા"
   },
   "logs": {
     "title": "લોગ",

@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Mga kahilingan ayon sa agent",
     "sortBy": "Ayusin ayon sa {column}",
-    "sortHint": "Ang pag-aayos ay para lamang sa {count} na-load na row"
+    "sortHint": "Ang pag-aayos ay para lamang sa {count} na-load na row",
+    "cacheHitRate": "Cache hit rate",
+    "cacheSavedTokens": "{tokens} token ang natipid",
+    "cacheHitRateHint": "{hits} hit laban sa {misses} miss mula nang magsimula ang server · {requests} tawag sa provider ang naiwasan"
   },
   "logs": {
     "title": "Mga Log",

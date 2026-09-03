@@ -375,6 +375,62 @@ describe('response cache', () => {
     });
   });
 
+  describe('hit rate', () => {
+    it('counts every lookup, so an eviction cannot drag the rate down', () => {
+      process.env.RESPONSE_CACHE_MAX_ENTRIES = '1';
+      const a = computeCacheKey({ model: 'auto', messages: [msg('user', 'a')] });
+      const b = computeCacheKey({ model: 'auto', messages: [msg('user', 'b')] });
+
+      store(a, 'answer a');
+      expect(getCachedResponse(a)).not.toBeNull(); // 1 hit
+      // Storing b evicts a, taking a's hit_count with it.
+      store(b, 'answer b');
+      expect(getCachedResponse(b)).not.toBeNull(); // 2 hits
+
+      const stats = getCacheStats();
+      expect(stats.lookupHits).toBe(2);
+      expect(stats.lookupMisses).toBe(0);
+      expect(stats.hitRate).toBe(1);
+      // The entry-attributed count did shrink with the eviction; that is the
+      // savings figure, and precisely why the rate must not be derived from it.
+      expect(stats.totalHits).toBe(1);
+    });
+
+    it('counts misses, including a lookup that found an expired entry', () => {
+      process.env.RESPONSE_CACHE_TTL_SECONDS = '60';
+      const key = computeCacheKey({ model: 'auto', messages: [msg('user', 'rate')] });
+      const t0 = 5_000_000;
+
+      expect(getCachedResponse(key, t0)).toBeNull(); // cold miss
+      store(key, 'answer', t0);
+      expect(getCachedResponse(key, t0 + 1_000)).not.toBeNull(); // hit
+      expect(getCachedResponse(key, t0 + 120_000)).toBeNull(); // expired: a miss
+
+      const stats = getCacheStats();
+      expect(stats.lookupHits).toBe(1);
+      expect(stats.lookupMisses).toBe(2);
+      expect(stats.hitRate).toBeCloseTo(1 / 3, 6);
+    });
+
+    it('reports 0 before any lookup rather than dividing by zero', () => {
+      const stats = getCacheStats();
+      expect(stats.lookupHits).toBe(0);
+      expect(stats.lookupMisses).toBe(0);
+      expect(stats.hitRate).toBe(0);
+    });
+
+    it('resets the tallies when the cache is flushed', () => {
+      const key = computeCacheKey({ model: 'auto', messages: [msg('user', 'flush-rate')] });
+      store(key, 'answer');
+      getCachedResponse(key);
+      expect(getCacheStats().hitRate).toBe(1);
+
+      clearCache();
+      // A 100% hit rate beside zero entries would be nonsense.
+      expect(getCacheStats().hitRate).toBe(0);
+    });
+  });
+
   // Persistence is tied to the cache master switch, so these have to turn it on.
   // "Restart" means __resetMemoryForTests(): it drops the in-memory LRU and
   // leaves the table alone, which is what a process restart does. clearCache()

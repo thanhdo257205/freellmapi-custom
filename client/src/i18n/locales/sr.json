@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Захтеви по агенту",
     "sortBy": "Сортирај по: {column}",
-    "sortHint": "Сортирање важи за {count} учитаних редова"
+    "sortHint": "Сортирање важи за {count} учитаних редова",
+    "cacheHitRate": "Стопа погодака кеша",
+    "cacheSavedTokens": "Уштеђено {tokens} токена",
+    "cacheHitRateHint": "{hits} погодака наспрам {misses} промашаја од покретања сервера · избегнуто {requests} позива провајдеру"
   },
   "logs": {
     "title": "Логови",

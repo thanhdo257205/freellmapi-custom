@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Verzoeken per agent",
     "sortBy": "Sorteren op {column}",
-    "sortHint": "De sortering geldt voor de {count} geladen rijen"
+    "sortHint": "De sortering geldt voor de {count} geladen rijen",
+    "cacheHitRate": "Cache-hitratio",
+    "cacheSavedTokens": "{tokens} tokens bespaard",
+    "cacheHitRateHint": "{hits} hits tegenover {misses} missers sinds de serverstart · {requests} provideraanroepen vermeden"
   },
   "logs": {
     "title": "Logs",

@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "ਏਜੰਟ ਦੁਆਰਾ ਬੇਨਤੀਆਂ",
     "sortBy": "{column} ਅਨੁਸਾਰ ਕ੍ਰਮਬੱਧ ਕਰੋ",
-    "sortHint": "ਕ੍ਰਮਬੱਧਤਾ ਸਿਰਫ਼ ਲੋਡ ਕੀਤੀਆਂ {count} ਕਤਾਰਾਂ 'ਤੇ ਲਾਗੂ ਹੁੰਦੀ ਹੈ"
+    "sortHint": "ਕ੍ਰਮਬੱਧਤਾ ਸਿਰਫ਼ ਲੋਡ ਕੀਤੀਆਂ {count} ਕਤਾਰਾਂ 'ਤੇ ਲਾਗੂ ਹੁੰਦੀ ਹੈ",
+    "cacheHitRate": "ਕੈਸ਼ ਹਿੱਟ ਦਰ",
+    "cacheSavedTokens": "{tokens} ਟੋਕਨ ਬਚਾਏ",
+    "cacheHitRateHint": "ਸਰਵਰ ਚਾਲੂ ਹੋਣ ਤੋਂ ਬਾਅਦ {hits} ਹਿੱਟ ਬਨਾਮ {misses} ਮਿਸ · {requests} ਪ੍ਰਦਾਤਾ ਕਾਲਾਂ ਬਚਾਈਆਂ"
   },
   "logs": {
     "title": "ਲੌਗ",

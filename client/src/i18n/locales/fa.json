@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "درخواستها بر اساس عامل",
     "sortBy": "مرتب‌سازی بر اساس {column}",
-    "sortHint": "مرتب‌سازی فقط روی {count} ردیف بارگذاری‌شده اعمال می‌شود"
+    "sortHint": "مرتب‌سازی فقط روی {count} ردیف بارگذاری‌شده اعمال می‌شود",
+    "cacheHitRate": "نرخ اصابت حافظه نهان",
+    "cacheSavedTokens": "{tokens} توکن صرفه‌جویی شد",
+    "cacheHitRateHint": "{hits} اصابت در برابر {misses} خطا از زمان راه‌اندازی سرور · {requests} فراخوانی ارائه‌دهنده صرفه‌جویی شد"
   },
   "logs": {
     "title": "لاگ‌ها",

@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Begäranden per agent",
     "sortBy": "Sortera efter {column}",
-    "sortHint": "Sorteringen gäller de {count} inlästa raderna"
+    "sortHint": "Sorteringen gäller de {count} inlästa raderna",
+    "cacheHitRate": "Cacheträffkvot",
+    "cacheSavedTokens": "{tokens} tokens sparade",
+    "cacheHitRateHint": "{hits} träffar mot {misses} missar sedan servern startade · {requests} leverantörsanrop undvikna"
   },
   "logs": {
     "title": "Loggar",

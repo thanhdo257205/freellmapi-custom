@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "에이전트별 요청",
     "sortBy": "{column} 기준 정렬",
-    "sortHint": "정렬은 불러온 {count}개 행에만 적용됩니다"
+    "sortHint": "정렬은 불러온 {count}개 행에만 적용됩니다",
+    "cacheHitRate": "캐시 적중률",
+    "cacheSavedTokens": "{tokens} 토큰 절약",
+    "cacheHitRateHint": "서버 시작 이후 적중 {hits}회, 실패 {misses}회 · 제공자 호출 {requests}회 절약"
   },
   "logs": {
     "title": "로그",

@@ -716,7 +716,10 @@
     "ttft": "首字延遲",
     "requestsByAgent": "按代理程式統計的請求",
     "sortBy": "依{column}排序",
-    "sortHint": "排序僅套用於已載入的 {count} 列"
+    "sortHint": "排序僅套用於已載入的 {count} 列",
+    "cacheHitRate": "快取命中率",
+    "cacheSavedTokens": "已節省 {tokens} Token",
+    "cacheHitRateHint": "自伺服器啟動以來命中 {hits} 次、未命中 {misses} 次 · 省下 {requests} 次供應商呼叫"
   },
   "logs": {
     "title": "日誌",

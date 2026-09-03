@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Yêu cầu theo tác nhân",
     "sortBy": "Sắp xếp theo {column}",
-    "sortHint": "Sắp xếp chỉ áp dụng cho {count} hàng đã tải"
+    "sortHint": "Sắp xếp chỉ áp dụng cho {count} hàng đã tải",
+    "cacheHitRate": "Tỷ lệ trúng bộ nhớ đệm",
+    "cacheSavedTokens": "Tiết kiệm {tokens} token",
+    "cacheHitRateHint": "{hits} lần trúng so với {misses} lần trượt kể từ khi máy chủ khởi động · tránh được {requests} lượt gọi nhà cung cấp"
   },
   "logs": {
     "title": "Nhật ký",

@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Anfragen nach Agent",
     "sortBy": "Nach {column} sortieren",
-    "sortHint": "Die Sortierung gilt für die {count} geladenen Zeilen"
+    "sortHint": "Die Sortierung gilt für die {count} geladenen Zeilen",
+    "cacheHitRate": "Cache-Trefferquote",
+    "cacheSavedTokens": "{tokens} Tokens gespart",
+    "cacheHitRateHint": "{hits} Treffer gegenüber {misses} Fehlschlägen seit dem Serverstart · {requests} Anbieteraufrufe vermieden"
   },
   "logs": {
     "title": "Protokoll",

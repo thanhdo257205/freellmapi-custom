@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Заявки по агент",
     "sortBy": "Сортиране по {column}",
-    "sortHint": "Сортирането се прилага за {count} заредени реда"
+    "sortHint": "Сортирането се прилага за {count} заредени реда",
+    "cacheHitRate": "Процент попадения в кеша",
+    "cacheSavedTokens": "Спестени {tokens} токена",
+    "cacheHitRateHint": "{hits} попадения срещу {misses} пропуска от старта на сървъра · спестени {requests} заявки към доставчик"
   },
   "logs": {
     "title": "Логове",

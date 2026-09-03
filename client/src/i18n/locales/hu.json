@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Kérések ügynökönként",
     "sortBy": "Rendezés: {column}",
-    "sortHint": "A rendezés a betöltött {count} sorra vonatkozik"
+    "sortHint": "A rendezés a betöltött {count} sorra vonatkozik",
+    "cacheHitRate": "Gyorsítótár-találati arány",
+    "cacheSavedTokens": "{tokens} token megtakarítva",
+    "cacheHitRateHint": "{hits} találat és {misses} tévesztés a szerver indítása óta · {requests} szolgáltatóhívás megspórolva"
   },
   "logs": {
     "title": "Napló",

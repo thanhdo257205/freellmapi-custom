@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "এজেন্ট অনুযায়ী অনুরোধ",
     "sortBy": "{column} অনুযায়ী সাজান",
-    "sortHint": "সাজানো শুধুমাত্র লোড হওয়া {count}টি সারিতে প্রযোজ্য"
+    "sortHint": "সাজানো শুধুমাত্র লোড হওয়া {count}টি সারিতে প্রযোজ্য",
+    "cacheHitRate": "ক্যাশ হিট রেট",
+    "cacheSavedTokens": "{tokens} টোকেন সাশ্রয়",
+    "cacheHitRateHint": "সার্ভার চালুর পর থেকে {hits} হিট বনাম {misses} মিস · {requests} প্রোভাইডার কল এড়ানো হয়েছে"
   },
   "logs": {
     "title": "লগ",

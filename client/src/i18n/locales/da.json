@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Anmodninger pr. agent",
     "sortBy": "Sortér efter {column}",
-    "sortHint": "Sorteringen gælder de {count} indlæste rækker"
+    "sortHint": "Sorteringen gælder de {count} indlæste rækker",
+    "cacheHitRate": "Cache-hitrate",
+    "cacheSavedTokens": "{tokens} tokens sparet",
+    "cacheHitRateHint": "{hits} hits mod {misses} misses siden serveren startede · {requests} udbyderkald undgået"
   },
   "logs": {
     "title": "Log",

@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Užklausos pagal agentą",
     "sortBy": "Rikiuoti pagal {column}",
-    "sortHint": "Rikiavimas taikomas {count} įkeltoms eilutėms"
+    "sortHint": "Rikiavimas taikomas {count} įkeltoms eilutėms",
+    "cacheHitRate": "Podėlio pataikymų dalis",
+    "cacheSavedTokens": "Sutaupyta {tokens} žetonų",
+    "cacheHitRateHint": "{hits} pataikymai prieš {misses} praleidimus nuo serverio paleidimo · išvengta {requests} tiekėjo užklausų"
   },
   "logs": {
     "title": "Žurnalas",

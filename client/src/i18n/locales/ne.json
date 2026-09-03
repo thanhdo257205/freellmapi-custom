@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "एजेन्टद्वारा अनुरोधहरू",
     "sortBy": "{column} अनुसार क्रमबद्ध गर्नुहोस्",
-    "sortHint": "क्रमबद्धता लोड गरिएका {count} पङ्क्तिहरूमा मात्र लागू हुन्छ"
+    "sortHint": "क्रमबद्धता लोड गरिएका {count} पङ्क्तिहरूमा मात्र लागू हुन्छ",
+    "cacheHitRate": "क्यास हिट दर",
+    "cacheSavedTokens": "{tokens} टोकन बचत",
+    "cacheHitRateHint": "सर्भर सुरु भएदेखि {hits} हिट बनाम {misses} मिस · {requests} प्रदायक कल बचाइयो"
   },
   "logs": {
     "title": "लग",

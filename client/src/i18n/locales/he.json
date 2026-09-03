@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "בקשות לפי סוכן",
     "sortBy": "מיון לפי {column}",
-    "sortHint": "המיון חל על {count} השורות שנטענו בלבד"
+    "sortHint": "המיון חל על {count} השורות שנטענו בלבד",
+    "cacheHitRate": "שיעור פגיעות במטמון",
+    "cacheSavedTokens": "נחסכו {tokens} טוקנים",
+    "cacheHitRateHint": "{hits} פגיעות מול {misses} החטאות מאז הפעלת השרת · נחסכו {requests} קריאות לספק"
   },
   "logs": {
     "title": "יומן",

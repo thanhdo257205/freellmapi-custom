@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Запити за агентами",
     "sortBy": "Сортувати за: {column}",
-    "sortHint": "Сортування застосовується до {count} завантажених рядків"
+    "sortHint": "Сортування застосовується до {count} завантажених рядків",
+    "cacheHitRate": "Частка влучань у кеш",
+    "cacheSavedTokens": "Заощаджено {tokens} токенів",
+    "cacheHitRateHint": "{hits} влучань проти {misses} промахів від запуску сервера · уникнено {requests} викликів до постачальника"
   },
   "logs": {
     "title": "Журнал",

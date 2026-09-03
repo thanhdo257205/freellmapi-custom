@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Ajan başına istekler",
     "sortBy": "{column} ölçütüne göre sırala",
-    "sortHint": "Sıralama yalnızca yüklenen {count} satıra uygulanır"
+    "sortHint": "Sıralama yalnızca yüklenen {count} satıra uygulanır",
+    "cacheHitRate": "Önbellek isabet oranı",
+    "cacheSavedTokens": "{tokens} jeton tasarruf edildi",
+    "cacheHitRateHint": "Sunucu başlatıldığından beri {hits} isabet, {misses} ıskalama · {requests} sağlayıcı çağrısından kaçınıldı"
   },
   "logs": {
     "title": "Günlükler",

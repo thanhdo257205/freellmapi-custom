@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Pyynnöt agenteittain",
     "sortBy": "Lajittele: {column}",
-    "sortHint": "Lajittelu koskee vain ladattuja {count} riviä"
+    "sortHint": "Lajittelu koskee vain ladattuja {count} riviä",
+    "cacheHitRate": "Välimuistin osumaprosentti",
+    "cacheSavedTokens": "{tokens} tokenia säästetty",
+    "cacheHitRateHint": "{hits} osumaa vs. {misses} ohitusta palvelimen käynnistyksestä · {requests} palveluntarjoajan kutsua vältetty"
   },
   "logs": {
     "title": "Lokit",

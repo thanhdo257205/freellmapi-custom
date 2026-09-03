@@ -280,6 +280,21 @@ interface CacheEntry {
 // at the end (delete + set), so eviction from the front drops the coldest entry.
 const store = new Map<string, CacheEntry>();
 
+// Lifetime-of-process lookup tallies, the denominator behind the dashboard's
+// hit rate. Entries alone cannot provide it: a cache that is 99% empty is 0%
+// useful, and a flushed store would otherwise read as a 100% hit rate.
+// Counted only when a request actually consulted the cache (a cacheKey was
+// computed), never for requests that bypassed it.
+//
+// Deliberately NOT seeded from SQLite on load. Hits persist per row
+// (response_cache.hit_count) but a miss has no row to live on, so restoring
+// only the hits would report a rate biased upward after every restart. A ratio
+// is only honest when numerator and denominator cover the same window, and
+// that window is this process. The savings figures below are the ones that
+// survive a restart, because they ride on the entries themselves.
+let lookupHits = 0;
+let lookupMisses = 0;
+
 // ── Deferred SQLite write-through ──
 // better-sqlite3 is synchronous, so a store/hit write would sit on the request
 // path (a large completion body is a multi-KB write with an fsync behind it).
@@ -333,6 +348,8 @@ export function __flushPersistenceForTests(): void {
 export function __resetMemoryForTests(): void {
   drainPendingWrites();
   store.clear();
+  lookupHits = 0;
+  lookupMisses = 0;
 }
 
 /**
@@ -342,15 +359,20 @@ export function __resetMemoryForTests(): void {
  */
 export function getCachedResponse(cacheKey: string, now = Date.now()): CachedResponse | null {
   const entry = store.get(cacheKey);
-  if (!entry) return null;
+  if (!entry) {
+    lookupMisses += 1;
+    return null;
+  }
 
   if (now - entry.createdAtMs > cacheTtlMs()) {
     store.delete(cacheKey);
     // The row would otherwise outlive its memory entry until the next restart.
     scheduleRowDelete(cacheKey);
+    lookupMisses += 1;
     return null;
   }
 
+  lookupHits += 1;
   entry.hitCount += 1;
   entry.lastHitAtMs = now;
   // Move to most-recently-used.
@@ -525,15 +547,29 @@ export function loadCacheFromDb(now = Date.now()): void {
 
 export interface CacheStats {
   entries: number;
+  /** Hits accumulated by the entries currently held, restored from SQLite. */
   totalHits: number;
+  /** Hits ARE the savings: each one avoided a full provider round-trip. */
+  estimatedRequestsSaved: number;
   savedPromptTokens: number;
   savedCompletionTokens: number;
+  /** Lookups since this process started — the two halves of the ratio below. */
+  lookupHits: number;
+  lookupMisses: number;
+  /** 0..1 share of this process's lookups that hit (no lookups yet → 0). */
+  hitRate: number;
 }
 
 /**
  * Aggregate cache stats for the dashboard. "saved" tokens are the provider
  * tokens that hits avoided spending: hit_count x the entry's token counts,
- * summed, i.e. the free-tier quota the cache gave back.
+ * summed, i.e. the free-tier quota the cache gave back. Those ride on the
+ * entries, so they survive a restart along with the persisted rows.
+ *
+ * hitRate is deliberately computed from the process-lifetime lookup tallies
+ * instead of totalHits: totalHits only counts the entries still held, so an
+ * eviction (or a TTL expiry) would silently retire hits that really happened
+ * and drag the reported rate down forever.
  */
 export function getCacheStats(): CacheStats {
   let totalHits = 0;
@@ -544,7 +580,17 @@ export function getCacheStats(): CacheStats {
     savedPromptTokens += entry.hitCount * entry.promptTokens;
     savedCompletionTokens += entry.hitCount * entry.completionTokens;
   }
-  return { entries: store.size, totalHits, savedPromptTokens, savedCompletionTokens };
+  const lookups = lookupHits + lookupMisses;
+  return {
+    entries: store.size,
+    totalHits,
+    estimatedRequestsSaved: totalHits,
+    savedPromptTokens,
+    savedCompletionTokens,
+    lookupHits,
+    lookupMisses,
+    hitRate: lookups > 0 ? lookupHits / lookups : 0,
+  };
 }
 
 /**
@@ -559,6 +605,10 @@ export function clearCache(): number {
   const removed = store.size;
   store.clear();
   pendingWrites.length = 0;
+  // The lookup tallies describe the cache that just went away; keeping them
+  // would show a 90% hit rate next to zero entries right after a flush.
+  lookupHits = 0;
+  lookupMisses = 0;
   try {
     getDb().prepare('DELETE FROM response_cache').run();
   } catch {

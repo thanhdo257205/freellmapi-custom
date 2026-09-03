@@ -716,7 +716,10 @@
     "ttft": "TTFT",
     "requestsByAgent": "Agent üzrə sorğular",
     "sortBy": "{column} üzrə sırala",
-    "sortHint": "Sıralama yalnız yüklənmiş {count} sətrə tətbiq olunur"
+    "sortHint": "Sıralama yalnız yüklənmiş {count} sətrə tətbiq olunur",
+    "cacheHitRate": "Keş uğur nisbəti",
+    "cacheSavedTokens": "{tokens} token qənaət edildi",
+    "cacheHitRateHint": "Server başladığından bəri {hits} uğur, {misses} uğursuzluq · {requests} provayder sorğusundan qaçınıldı"
   },
   "logs": {
     "title": "Loglar",
