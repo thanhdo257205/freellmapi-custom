@@ -10,6 +10,7 @@ import { parseKeysFromFile, stripJsoncComments, stripTrailingCommas } from '../l
 import { assessProviderUrl } from '../lib/url-guard.js';
 import { verifyCredentials } from '../services/auth.js';
 import { getActiveCooldownsForKeys, clearCooldownsForKey } from '../services/ratelimit.js';
+import { getMonthlyBudgetCaps } from '../services/key-budget.js';
 import { resolveCustomEndpointKey, customEndpointKeyIds, siblingEndpointKeyId, endpointHasCredential } from '../services/custom-endpoint.js';
 import { registerCustomModels, registerCustomChatModels } from '../services/custom-model-register.js';
 import { registerCustomMediaModel } from '../services/custom-media-register.js';
@@ -75,12 +76,13 @@ const updateKeySchema = z.object({
   modelScope: z.array(z.string().trim().min(1).max(200)).max(100).nullable().optional(),
   // #590: '' clears the per-key proxy; absent leaves it unchanged.
   proxyUrl: proxyUrlSchema.optional(),
-  // Re-entry of a credential without deleting and recreating the row. Like
-  // POST, the value is trimmed and never echoed back; an absent field leaves
-  // the encrypted key untouched.
+  // Monthly budget caps (#1158): 0 clears the cap (unlimited).
+  monthlyRequestCap: z.number().int().min(0).max(1_000_000_000).optional(),
+  monthlyTokenCap: z.number().int().min(0).max(1_000_000_000_000).optional(),
+  // An absent credential leaves the encrypted key untouched.
   key: z.string().trim().min(1).optional(),
-}).refine(data => data.enabled !== undefined || data.label !== undefined || data.modelScope !== undefined || data.proxyUrl !== undefined || data.key !== undefined, {
-  message: 'At least one of enabled, label, modelScope, proxyUrl or key must be provided',
+}).refine(data => data.enabled !== undefined || data.label !== undefined || data.modelScope !== undefined || data.proxyUrl !== undefined || data.key !== undefined || data.monthlyRequestCap !== undefined || data.monthlyTokenCap !== undefined, {
+  message: 'At least one of enabled, label, modelScope, proxyUrl, key, monthlyRequestCap or monthlyTokenCap must be provided',
 });
 
 const importKeySchema = z.object({
@@ -313,12 +315,15 @@ keysRouter.get('/', (_req: Request, res: Response) => {
     }
     const cooldowns = cooldownsByKeyId.get(Number(row.id)) ?? [];
     const scope = parseModelScope(row.model_scope_json);
+    const budgetCaps = getMonthlyBudgetCaps(Number(row.id));
     return {
       id: row.id,
       platform: row.platform,
       label: row.label,
       maskedKey,
       baseUrl: row.base_url ?? null,
+      monthlyRequestCap: budgetCaps.requestCap,
+      monthlyTokenCap: budgetCaps.tokenCap,
       status: row.status,
       enabled: row.enabled === 1,
       keyless: resolveProvider(row.platform)?.keyless === true,
@@ -1513,7 +1518,7 @@ keysRouter.patch('/:id', (req: Request, res: Response) => {
     return;
   }
 
-  const { enabled, label, modelScope, proxyUrl, key } = parsed.data;
+  const { enabled, label, modelScope, proxyUrl, key, monthlyRequestCap, monthlyTokenCap } = parsed.data;
   const updates: string[] = [];
   const values: (string | number | null)[] = [];
   let changedKey: string | undefined;
@@ -1566,6 +1571,15 @@ keysRouter.patch('/:id', (req: Request, res: Response) => {
     const proxy = encryptProxyUrl(proxyUrl);
     updates.push('proxy_encrypted = ?', 'proxy_iv = ?', 'proxy_auth_tag = ?');
     values.push(proxy.encrypted, proxy.iv, proxy.authTag);
+  }
+  // Monthly budget caps (#1158): 0 = unlimited.
+  if (monthlyRequestCap !== undefined) {
+    updates.push('monthly_request_cap = ?');
+    values.push(monthlyRequestCap);
+  }
+  if (monthlyTokenCap !== undefined) {
+    updates.push('monthly_token_cap = ?');
+    values.push(monthlyTokenCap);
   }
   // Deduped; an empty result stores NULL, which the router reads as "unscoped".
   const scopeIds = modelScope == null ? [] : [...new Set(modelScope)];
