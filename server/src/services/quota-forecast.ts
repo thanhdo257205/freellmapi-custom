@@ -159,10 +159,8 @@ function entryFor(row: QuotaObservationView, ratePerMin: number | null, now: num
 // Dedupe to the TIGHTEST row per platform+pool: a platform with several keys
 // sharing one account pool reports the same window per key, and the number that
 // matters for "can I keep calling" is the least headroom left.
-export function getQuotaForecast(): QuotaForecastEntry[] {
+export function getQuotaForecast(rows = getQuotaStateForKeys(), now = Date.now()): QuotaForecastEntry[] {
   const byKey = new Map<string, QuotaForecastEntry>();
-  const rows = getQuotaStateForKeys();
-  const now = Date.now();
   const counts = rows.length ? recentRequestCounts(now) : new Map<string, number>();
   const poolKeys = new Map<string, Set<string>>();
   for (const row of rows) {

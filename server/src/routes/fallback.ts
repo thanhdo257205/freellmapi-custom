@@ -17,8 +17,15 @@ import { getActiveProfileId } from '../services/profile-models.js';
 import { qualifiedModelMemberId } from '../lib/endpoint-scope.js';
 import { overriddenFieldNames } from '../services/model-state.js';
 import { parseModelScope, scopeAllows } from '../lib/model-scope.js';
+import { getQuotaOutlook } from '../services/quota-outlook.js';
 
 export const fallbackRouter = Router();
+
+// Dashboard-session authenticated by app.ts. Polling only reads saved quota
+// observations and request history, never provider endpoints or key material.
+fallbackRouter.get('/quota-forecast', (_req: Request, res: Response) => {
+  res.json(getQuotaOutlook());
+});
 
 // ── Bandit routing strategy ─────────────────────────────────────────────────
 // GET  /routing → active strategy, preset weights, and the per-model score

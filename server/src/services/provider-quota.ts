@@ -560,14 +560,16 @@ export function invalidateKeyQuotaHeadroom(platform?: Platform): void {
   else headroomCache.clear();
 }
 
-export function getQuotaStateForKeys(): QuotaObservationView[] {
+export function getQuotaStateForKeys(options: { normalizeExpired?: boolean } = {}): QuotaObservationView[] {
   let db;
   try {
     db = getDb();
   } catch {
     return [];
   }
-  normalizeExpiredQuotaState(db);
+  // Forecast readers keep the original observation and mark expired windows as
+  // stale. They must not replenish a balance merely by polling the dashboard.
+  if (options.normalizeExpired !== false) normalizeExpiredQuotaState(db);
   // One seek per state row for its newest observation. The log is append-only
   // and grows into the hundreds of thousands of rows, so this must never scan
   // it: the correlated subquery walks idx_provider_quota_observations_latest

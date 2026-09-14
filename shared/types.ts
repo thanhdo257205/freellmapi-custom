@@ -578,6 +578,25 @@ export interface ProviderQuotaObservation extends ProviderQuotaState {
   createdAt: string;
 }
 
+export interface QuotaOutlookPool {
+  platform: Platform;
+  pool: string;
+  limit: number | null;
+  remaining: number | null;
+  remainingPct: number | null;
+  observedAt: string;
+  resetAt: string | null;
+  ratePerMin: number | null;
+  estimatedExhaustionAt: string | null;
+  status: 'unknown' | 'stale' | 'insufficient_data' | 'resets_first' | 'forecast' | 'exhausted';
+  warning: 'low_balance' | 'exhausting_soon' | null;
+}
+
+export interface QuotaOutlookResponse {
+  generatedAt: string;
+  pools: QuotaOutlookPool[];
+}
+
 // ---- Provider Dashboard Types ----
 
 export type ProviderHealthStatus = 'healthy' | 'issues' | 'rate_limited' | 'unknown' | 'unconfigured';
