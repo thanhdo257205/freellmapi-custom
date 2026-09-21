@@ -11,6 +11,7 @@ import {
   updateEmail,
   updatePassword,
   resetUserPassword,
+  normalizeEmail,
 } from '../services/auth.js';
 import { setupCodeMatches, clearSetupCode } from '../lib/setup-code.js';
 import { generateResetCode, resetCodeMatches, clearResetCode } from '../lib/reset-code.js';
@@ -47,14 +48,26 @@ const loginSchema = z.object({
 // distributed store; this just blunts online password guessing.
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
+// Bound the map so a flood of distinct addresses cannot grow it without limit;
+// expired buckets are pruned opportunistically, mirroring the per-IP limiter in
+// middleware/rateLimit.ts.
+const MAX_TRACKED_EMAILS = 10_000;
 const attempts = new Map<string, { count: number; lockedUntil: number }>();
 
+// The bucket key MUST be the same spelling verifyCredentials looks the user up
+// by. Keying on `.toLowerCase()` alone while the lookup also trimmed meant
+// " admin@example.com" authenticated against the admin row but landed in its
+// own bucket, so every whitespace variant handed the guesser another five
+// tries and the lockout never engaged.
+function throttleKey(email: string): string {
+  return normalizeEmail(email);
+}
 function isLockedOut(email: string): boolean {
-  const a = attempts.get(email.toLowerCase());
+  const a = attempts.get(throttleKey(email));
   return !!a && a.lockedUntil > Date.now();
 }
 function recordFailure(email: string): void {
-  const key = email.toLowerCase();
+  const key = throttleKey(email);
   const a = attempts.get(key) ?? { count: 0, lockedUntil: 0 };
   a.count++;
   if (a.count >= MAX_ATTEMPTS) {
@@ -62,9 +75,15 @@ function recordFailure(email: string): void {
     a.count = 0;
   }
   attempts.set(key, a);
+  if (attempts.size > MAX_TRACKED_EMAILS) {
+    const now = Date.now();
+    for (const [tracked, state] of attempts) {
+      if (tracked !== key && state.lockedUntil <= now) attempts.delete(tracked);
+    }
+  }
 }
 function clearFailures(email: string): void {
-  attempts.delete(email.toLowerCase());
+  attempts.delete(throttleKey(email));
 }
 
 function bearer(req: Request): string | undefined {
