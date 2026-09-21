@@ -1191,6 +1191,10 @@
     "startEmpty": "Start empty",
     "startEmptyHint": "Create the chain with no models in it, and keep new catalog models out of it. Unchecked, it starts as a copy of the default chain.",
     "curated": "Curated",
-    "curatedHint": "New catalog models are not added to this chain automatically."
+    "curatedHint": "New catalog models are not added to this chain automatically.",
+    "renameHint": "تغییر نام این زنجیره",
+    "renameConfirm": "نام زنجیره \"{oldName}\" به \"{name}\" تغییر کند؟ کلاینت‌هایی که auto:{oldName} را صدا می‌زنند باید به auto:{name} بروند.",
+    "renamePlaceholder": "نام جدید زنجیره",
+    "renameFailed": "تغییر نام زنجیره انجام نشد."
   }
 }

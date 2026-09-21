@@ -1191,6 +1191,10 @@
     "startEmpty": "Start empty",
     "startEmptyHint": "Create the chain with no models in it, and keep new catalog models out of it. Unchecked, it starts as a copy of the default chain.",
     "curated": "Curated",
-    "curatedHint": "New catalog models are not added to this chain automatically."
+    "curatedHint": "New catalog models are not added to this chain automatically.",
+    "renameHint": "ഈ ചെയിനിന്റെ പേരു മാറ്റുക",
+    "renameConfirm": "ചെയിൻ \"{oldName}\" എന്നതിന്റെ പേരു \"{name}\" ആക്കണോ? auto:{oldName} വിളിക്കുന്ന ക്ലയന്റുകൾ auto:{name} ലേക്ക് മാറണം.",
+    "renamePlaceholder": "പുതിയ ചെയിൻ പേര്",
+    "renameFailed": "ചെയിനിന്റെ പേരു മാറ്റാനായില്ല."
   }
 }

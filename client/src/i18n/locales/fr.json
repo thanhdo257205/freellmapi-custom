@@ -1191,6 +1191,10 @@
     "startEmpty": "Démarrer vide",
     "startEmptyHint": "Crée la chaîne sans aucun modèle et en tient les nouveaux modèles du catalogue à l'écart. Décoché, elle démarre comme une copie de la chaîne par défaut.",
     "curated": "Curatée",
-    "curatedHint": "Les nouveaux modèles du catalogue ne sont pas ajoutés automatiquement à cette chaîne."
+    "curatedHint": "Les nouveaux modèles du catalogue ne sont pas ajoutés automatiquement à cette chaîne.",
+    "renameHint": "Renommer cette chaîne",
+    "renameConfirm": "Renommer la chaîne « {oldName} » en « {name} » ? Les clients appelant auto:{oldName} doivent passer à auto:{name}.",
+    "renamePlaceholder": "Nouveau nom de la chaîne",
+    "renameFailed": "Impossible de renommer cette chaîne."
   }
 }

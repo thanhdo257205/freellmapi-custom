@@ -1191,6 +1191,10 @@
     "startEmpty": "從空鏈開始",
     "startEmptyHint": "建立時不放入任何模型，之後新增的目錄模型也不會自動加入。不勾選則複製預設鏈。",
     "curated": "手動維護",
-    "curatedHint": "新的目錄模型不會自動加入這條鏈。"
+    "curatedHint": "新的目錄模型不會自動加入這條鏈。",
+    "renameHint": "重新命名此鏈",
+    "renameConfirm": "將鏈「{oldName}」重新命名為「{name}」？呼叫 auto:{oldName} 的客戶端必須改用 auto:{name}。",
+    "renamePlaceholder": "新鏈名稱",
+    "renameFailed": "無法重新命名該鏈。"
   }
 }

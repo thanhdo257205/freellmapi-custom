@@ -1191,6 +1191,10 @@
     "startEmpty": "Boş başlat",
     "startEmptyHint": "Zinciri hiç model olmadan oluşturur ve yeni katalog modellerini dışarıda tutar. İşaretlenmezse varsayılan zincirin kopyası olarak başlar.",
     "curated": "Elle düzenli",
-    "curatedHint": "Yeni katalog modelleri bu zincire otomatik eklenmez."
+    "curatedHint": "Yeni katalog modelleri bu zincire otomatik eklenmez.",
+    "renameHint": "Bu zinciri yeniden adlandır",
+    "renameConfirm": "\"{oldName}\" zincirinin adı \"{name}\" olarak değiştirilsin mi? auto:{oldName} çağıran istemciler auto:{name} kullanmalı.",
+    "renamePlaceholder": "Yeni zincir adı",
+    "renameFailed": "Zincir yeniden adlandırılamadı."
   }
 }

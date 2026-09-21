@@ -1191,6 +1191,10 @@
     "startEmpty": "Bắt đầu rỗng",
     "startEmptyHint": "Tạo chuỗi không có mô hình nào và không tự thêm mô hình mới từ danh mục. Bỏ chọn thì chuỗi bắt đầu như bản sao của chuỗi mặc định.",
     "curated": "Tự chọn",
-    "curatedHint": "Mô hình mới trong danh mục không được thêm tự động vào chuỗi này."
+    "curatedHint": "Mô hình mới trong danh mục không được thêm tự động vào chuỗi này.",
+    "renameHint": "Đổi tên chuỗi này",
+    "renameConfirm": "Đổi tên chuỗi \"{oldName}\" thành \"{name}\"? Các client gọi auto:{oldName} phải chuyển sang auto:{name}.",
+    "renamePlaceholder": "Tên chuỗi mới",
+    "renameFailed": "Không thể đổi tên chuỗi."
   }
 }
