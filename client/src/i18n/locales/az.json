@@ -679,7 +679,12 @@
     "testFailed": "Model sınağı uğursuz oldu",
     "testThrottled": "Bu modeli yenidən sınaqdan keçirməzdən əvvəl {seconds} san gözləyin.",
     "noModelsForProvider": "Bu təminatçı üçün heç bir model tənzimlənməyib.",
-    "testModels": "Modelləri test et"
+    "testModels": "Modelləri test et",
+    "monthlyRequestCapLabel": "Aylıq sorğu limiti",
+    "monthlyTokenCapLabel": "Aylıq token limiti",
+    "capUnlimitedPlaceholder": "Limitsiz",
+    "capEditHint": "Limitlər hər ayın 1-i 00:00 UTC-də sıfırlanır. Limitsiz üçün boş buraxın.",
+    "monthlyUsageLine": "Bu ay {requests} sorğu, {tokens} token"
   },
   "backups": {
     "title": "Backups",

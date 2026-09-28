@@ -679,7 +679,12 @@
     "testFailed": "ମଡେଲ୍ ପରୀକ୍ଷା ବିଫଳ ହେଲା",
     "testThrottled": "ଦୟାକରି ଏହି ମଡେଲ୍ ପୁନର୍ବାର ପରୀକ୍ଷା କରିବା ପୂର୍ବରୁ {seconds}s ଅପେକ୍ଷା କରନ୍ତୁ।",
     "noModelsForProvider": "ଏହି ପ୍ରଦାନକାରୀ ପାଇଁ କୌଣସି ମଡେଲ୍ କନଫିଗର୍ ହୋଇନାହିଁ।",
-    "testModels": "ମଡେଲ ପରୀକ୍ଷା କରନ୍ତୁ"
+    "testModels": "ମଡେଲ ପରୀକ୍ଷା କରନ୍ତୁ",
+    "monthlyRequestCapLabel": "ମାସିକ ଅନୁରୋଧ ସୀମା",
+    "monthlyTokenCapLabel": "ମାସିକ ଟୋକେନ୍ ସୀମା",
+    "capUnlimitedPlaceholder": "ଅସୀମିତ",
+    "capEditHint": "ସୀମା ପ୍ରତି ମାସର ୧ ତାରିଖରେ ୦୦:୦୦ UTC ରେ ରିସେଟ୍ ହୁଏ। ଅସୀମିତ ପାଇଁ ଖାଲି ରଖନ୍ତୁ।",
+    "monthlyUsageLine": "ଏହି ମାସରେ {requests} ଅନୁରୋଧ, {tokens} ଟୋକେନ୍"
   },
   "backups": {
     "title": "Backups",

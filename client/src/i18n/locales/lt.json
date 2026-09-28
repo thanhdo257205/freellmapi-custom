@@ -679,7 +679,12 @@
     "testFailed": "Modelio testas nepavyko",
     "testThrottled": "Palaukite {seconds}s prieš pakartotinai tikrindami šį modelį.",
     "noModelsForProvider": "Šiam teikėjui nėra sukonfigūruotų modelių.",
-    "testModels": "Testuoti modelius"
+    "testModels": "Testuoti modelius",
+    "monthlyRequestCapLabel": "Mėnesinis užklausų limitas",
+    "monthlyTokenCapLabel": "Mėnesinis žetonų limitas",
+    "capUnlimitedPlaceholder": "Neribota",
+    "capEditHint": "Limitai atstatomi 1 d. 00:00 UTC. Palikite tuščią neribotam.",
+    "monthlyUsageLine": "{requests} užklausos, {tokens} žetonai šį mėnesį"
   },
   "backups": {
     "title": "Backups",

@@ -679,7 +679,12 @@
     "testFailed": "Model sinovi muvaffaqiyatsiz tugadi",
     "testThrottled": "Ushbu modelni qayta sinashdan oldin {seconds} soniya kuting.",
     "noModelsForProvider": "Ushbu taʼminotchi uchun modellar sozlanmagan.",
-    "testModels": "Modellarni sinab ko‘rish"
+    "testModels": "Modellarni sinab ko‘rish",
+    "monthlyRequestCapLabel": "Oylik so‘rov chegarasi",
+    "monthlyTokenCapLabel": "Oylik token chegarasi",
+    "capUnlimitedPlaceholder": "Cheksiz",
+    "capEditHint": "Chegaralar har oyning 1-sana 00:00 UTC da tiklanadi. Cheksiz uchun bo‘sh qoldiring.",
+    "monthlyUsageLine": "Bu oy {requests} so‘rov, {tokens} token"
   },
   "backups": {
     "title": "Backups",

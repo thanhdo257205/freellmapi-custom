@@ -679,7 +679,12 @@
     "testFailed": "Test modelu selhal",
     "testThrottled": "Před dalším testem tohoto modelu počkejte {seconds} s.",
     "noModelsForProvider": "Pro tohoto poskytovatele nejsou nakonfigurovány žádné modely.",
-    "testModels": "Otestovat modely"
+    "testModels": "Otestovat modely",
+    "monthlyRequestCapLabel": "Měsíční limit požadavků",
+    "monthlyTokenCapLabel": "Měsíční limit tokenů",
+    "capUnlimitedPlaceholder": "Neomezeno",
+    "capEditHint": "Limity se resetují 1. dne v 00:00 UTC. Nechte prázdné pro neomezeno.",
+    "monthlyUsageLine": "{requests} požadavků, {tokens} tokenů tento měsíc"
   },
   "backups": {
     "title": "Backups",

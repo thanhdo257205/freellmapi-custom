@@ -679,7 +679,12 @@
     "testFailed": "בדיקת הדגם נכשלה",
     "testThrottled": "אנא המתן {seconds} שניות לפני בדיקת דגם זה שוב.",
     "noModelsForProvider": "לא הוגדרו דגמים עבור ספק זה.",
-    "testModels": "בדיקת מודלים"
+    "testModels": "בדיקת מודלים",
+    "monthlyRequestCapLabel": "מכסת בקשות חודשית",
+    "monthlyTokenCapLabel": "מכסת טוקנים חודשית",
+    "capUnlimitedPlaceholder": "ללא הגבלה",
+    "capEditHint": "המכסות מתאפסות ב-1 בחודש ב-00:00 UTC. השאירו ריק כדי להישאר ללא הגבלה.",
+    "monthlyUsageLine": "{requests} בקשות, {tokens} טוקנים החודש"
   },
   "backups": {
     "title": "Backups",

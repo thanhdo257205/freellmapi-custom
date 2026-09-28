@@ -679,7 +679,12 @@
     "testFailed": "Mallin testi epäonnistui",
     "testThrottled": "Odota {seconds}s ennen kuin testaat tätä mallia uudelleen.",
     "noModelsForProvider": "Tälle palveluntarjoajalle ei ole määritetty malleja.",
-    "testModels": "Testaa malleja"
+    "testModels": "Testaa malleja",
+    "monthlyRequestCapLabel": "Kuukausittainen pyyntöraja",
+    "monthlyTokenCapLabel": "Kuukausittainen tokenraja",
+    "capUnlimitedPlaceholder": "Rajoittamaton",
+    "capEditHint": "Rajat nollautuvat kuun 1. päivänä 00:00 UTC. Jätä tyhjäksi rajoittamattomaan.",
+    "monthlyUsageLine": "{requests} pyyntöä, {tokens} tokenia tässä kuussa"
   },
   "backups": {
     "title": "Backups",

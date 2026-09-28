@@ -679,7 +679,12 @@
     "testFailed": "Η δοκιμή μοντέλου απέτυχε",
     "testThrottled": "Περιμένετε {seconds}δ πριν δοκιμάσετε ξανά αυτό το μοντέλο.",
     "noModelsForProvider": "Δεν έχουν διαμορφωθεί μοντέλα για αυτόν τον πάροχο.",
-    "testModels": "Δοκιμή μοντέλων"
+    "testModels": "Δοκιμή μοντέλων",
+    "monthlyRequestCapLabel": "Μηνιαίο όριο αιτημάτων",
+    "monthlyTokenCapLabel": "Μηνιαίο όριο tokens",
+    "capUnlimitedPlaceholder": "Απεριόριστο",
+    "capEditHint": "Τα όρια μηδενίζονται την 1η στις 00:00 UTC. Αφήστε κενό για απεριόριστο.",
+    "monthlyUsageLine": "{requests} αιτήματα, {tokens} tokens αυτόν τον μήνα"
   },
   "backups": {
     "title": "Backups",

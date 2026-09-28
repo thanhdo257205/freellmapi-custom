@@ -679,7 +679,12 @@
     "testFailed": "Idanwo awoṣe kuna",
     "testThrottled": "Jọwọ duro fun iṣẹju-aaya {seconds} ki o to tun awoṣe yii ṣe idanwo.",
     "noModelsForProvider": "Ko si awọn awoṣe ti a tunto fun olupese yii.",
-    "testModels": "Ṣàdánwò àwọn àwòṣe"
+    "testModels": "Ṣàdánwò àwọn àwòṣe",
+    "monthlyRequestCapLabel": "Òpín ìbéèrè oṣooṣù",
+    "monthlyTokenCapLabel": "Òpín token oṣooṣù",
+    "capUnlimitedPlaceholder": "Kò ní òpín",
+    "capEditHint": "A tún òpín ṣe ní ọjọ́ kìíní ní 00:00 UTC. Fi sílẹ̀ ṣófo fún aláìlópin.",
+    "monthlyUsageLine": "{requests} ìbéèrè, {tokens} token oṣù yìí"
   },
   "backups": {
     "title": "Backups",
