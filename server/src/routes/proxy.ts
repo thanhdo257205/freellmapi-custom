@@ -2250,7 +2250,7 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
   // store and replayed as SSE rather than JSON (see below).
   const cacheKey = (cacheActive(cacheDirective) && isCacheableTemperature(temperature))
     ? computeCacheKey({
-        model: requestedModel, messages, temperature, top_p, max_tokens, tools, tool_choice,
+        model: requestedModel, messages, temperature, top_p, max_tokens, tools, tool_choice, parallel_tool_calls,
         // Normalized stop (providerSafeStop), i.e. what is actually forwarded.
         stop,
         // The knobs below are NOT in chatCompletionSchema, so zod strips them
@@ -2262,8 +2262,11 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
         response_format: req.body?.response_format ?? undefined,
         n: req.body?.n ?? undefined,
         seed: req.body?.seed ?? undefined,
+        top_k: req.body?.top_k ?? undefined,
+        min_p: req.body?.min_p ?? undefined,
         presence_penalty: req.body?.presence_penalty ?? undefined,
         frequency_penalty: req.body?.frequency_penalty ?? undefined,
+        repetition_penalty: req.body?.repetition_penalty ?? undefined,
         logit_bias: req.body?.logit_bias ?? undefined,
         logprobs: req.body?.logprobs ?? undefined,
         top_logprobs: req.body?.top_logprobs ?? undefined,
