@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { ChatMessage } from '@freellmapi/shared/types.js';
 import { getDb, getUnifiedApiKey } from '../db/index.js';
+import { validateUserApiKey, USER_KEY_PREFIX } from '../services/user-keys.js';
 
 // Per-client API keys with server-enforced system prompts (#411). A client
 // profile is a second kind of inference credential: it authenticates ONLY the
@@ -38,7 +39,8 @@ export function hashClientProfileKey(key: string): string {
 
 export type ResolvedAuth =
   | { kind: 'unified'; systemPrompt: null }
-  | { kind: 'profile'; profileId: number; name: string; systemPrompt: string | null };
+  | { kind: 'profile'; profileId: number; name: string; systemPrompt: string | null }
+  | { kind: 'user'; userId: number; email: string; systemPrompt: null };
 
 interface ProfileRow {
   id: number;
@@ -50,13 +52,17 @@ interface ProfileRow {
 /**
  * Resolve an inference credential. The unified key maps to today's behavior
  * (no enforced prompt); a client-profile key carries its own prompt; a
- * disabled profile is rejected exactly like an unknown key so a revoked
- * client can't distinguish "disabled" from "deleted".
+ * user key authenticates an invited member; a disabled credential is rejected.
  */
 export function resolveAuth(token: string | undefined): ResolvedAuth | null {
   if (!token) return null;
   if (timingSafeStringEqual(token, getUnifiedApiKey())) {
     return { kind: 'unified', systemPrompt: null };
+  }
+  if (token.startsWith(USER_KEY_PREFIX)) {
+    const valid = validateUserApiKey(token);
+    if (!valid) return null;
+    return { kind: 'user', userId: valid.userId, email: valid.email, systemPrompt: null };
   }
   if (!token.startsWith(CLIENT_PROFILE_KEY_PREFIX)) return null;
   const row = getDb().prepare(
