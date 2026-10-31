@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { invitesRouter } from '../routes/invites.js';
 import { userKeysRouter } from '../routes/user-keys.js';
+import { externalAuthRouter } from '../routes/external-auth.js';
 import { customAuthRouter } from './auth.js';
 
 // Everything this fork adds to the HTTP surface is wired here, so upstream's
@@ -36,7 +37,7 @@ export function registerCustomRoutes(app: Express): void {
 
   // Above the upstream authRouter mount, so a future upstream /register cannot
   // shadow invite registration.
-  app.use('/api/auth', customAuthRouter);
+  app.use('/api/auth', externalAuthRouter, customAuthRouter);
   app.use('/api/invites', requireAuth, invitesRouter);
   app.use('/api/user', requireAuth, userKeysRouter);
 }
