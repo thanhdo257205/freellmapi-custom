@@ -26,7 +26,7 @@ All of these are dashboard-session routes (`Authorization: Bearer <session token
 
 | Method | Path | Effect |
 |---|---|---|
-| `GET` | `/api/user/session` | Caller's `{ email, role, userId }` ([server/src/routes/user-keys.ts:20](../../../server/src/routes/user-keys.ts#L20)) — the fork's way to read the role without touching upstream's `/api/auth/*` responses |
+| `GET` | `/api/user/session` | Caller's `{ email, role, userId }` ([server/src/routes/user-keys.ts:20](../../../server/src/routes/user-keys.ts#L20)) — the fork's way to read the role without touching upstream's `/api/auth/*` responses. `client/src/custom/use-session.ts` is the only consumer |
 | `GET` | `/api/user/keys` | Caller's keys, newest first, with `revoked` and `lastUsedAt` |
 | `POST` | `/api/user/keys` | `{ name? }` → `201 { key: { id, key, keyPrefix, name, createdAt } }`; plaintext appears only here |
 | `DELETE` | `/api/user/keys/:id` | Sets `revoked = 1` for a key owned by the caller; `404` if it is another user's key or already revoked |
