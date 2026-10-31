@@ -32,7 +32,7 @@ describe('apiFetch 401 handling', () => {
   beforeEach(() => {
     events = []
     vi.stubGlobal('localStorage', makeStorage())
-    vi.stubGlobal('window', { dispatchEvent: (e: Event) => { events.push(e.type); return true } })
+    vi.stubGlobal('window', { addEventListener: () => {}, dispatchEvent: (e: Event) => { events.push(e.type); return true } })
     // Node's CustomEvent (>=19) works; make sure it exists either way.
     if (typeof globalThis.CustomEvent === 'undefined') {
       vi.stubGlobal('CustomEvent', class extends Event {})
@@ -81,7 +81,7 @@ describe('apiFetch 401 handling', () => {
 describe('apiFetch error messages', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', makeStorage())
-    vi.stubGlobal('window', { dispatchEvent: () => true })
+    vi.stubGlobal('window', { addEventListener: () => {}, dispatchEvent: () => true })
   })
 
   afterEach(() => {

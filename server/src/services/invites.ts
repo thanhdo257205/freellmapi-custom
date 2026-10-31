@@ -1,19 +1,8 @@
 import crypto from 'crypto';
 import { getDb } from '../db/index.js';
 
-export interface InviteCodeRow {
-  id: number;
-  code: string;
-  createdBy: number;
-  creatorEmail: string;
-  maxUses: number;
-  usedCount: number;
-  expiresAtMs: number | null;
-  note: string | null;
-  revoked: boolean;
-  status: 'active' | 'exhausted' | 'expired' | 'revoked';
-  createdAt: string;
-}
+export type { InviteCode as InviteCodeRow } from '@freellmapi/shared/user-access.js';
+import type { InviteCode as InviteCodeRow } from '@freellmapi/shared/user-access.js';
 
 export interface CreateInviteOptions {
   code?: string;

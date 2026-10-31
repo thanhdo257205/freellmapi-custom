@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { isEmail } from '@/lib/validate'
 import { useI18n } from '@/i18n'
 import { toast } from '@/lib/toast'
+import { useSessionBoundary } from '@/custom/session-state'
+import { RegistrationKeyNotice } from '@/custom/RegistrationKeyNotice'
 
 // Matches the server rule (routes/auth.ts zod schema).
 const PASSWORD_MIN = 8
@@ -69,6 +71,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
   const [busy, setBusy] = useState(false)
   const [attempted, setAttempted] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
+  const [registration, setRegistration] = useState<{ token: string; apiKey: string } | null>(null)
 
   // URL query parameter support: ?invite=... or ?mode=register defaults to registration
   const [inviteParam] = useState(() => {
@@ -125,6 +128,10 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           method: 'POST',
           body: JSON.stringify({ email: email.trim(), password, inviteCode: inviteCode.trim() }),
         })
+        if (res.apiKey) {
+          setRegistration({ token: res.token, apiKey: res.apiKey })
+          return
+        }
         setToken(res.token)
         toast.success('Account created! Welcome to FreeLLMAPI.')
         onAuthed()
@@ -151,6 +158,14 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
     } finally {
       setBusy(false)
     }
+  }
+
+  if (registration) {
+    return <Centered><RegistrationKeyNotice apiKey={registration.apiKey} onContinue={() => {
+      setToken(registration.token)
+      setRegistration(null)
+      onAuthed()
+    }} /></Centered>
   }
 
   if (showForgot && !isSetup) {
@@ -541,8 +556,9 @@ export function ChangeCredentialsModal({ mode, onClose }: ChangeCredentialsModal
 export function AuthGate({ children }: { children: ReactNode }) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
+  const revision = useSessionBoundary()
   const { data, isLoading, isError, refetch } = useQuery<AuthStatus>({
-    queryKey: ['auth-status'],
+    queryKey: ['auth-status', revision],
     queryFn: () => apiFetch('/api/auth/status'),
     retry: false,
   })
@@ -621,6 +637,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (data.needsSetup) return <AuthForm mode="setup" onAuthed={onAuthed} />
   if (!data.authenticated) return <AuthForm mode="login" onAuthed={onAuthed} />
 
-  return <>{children}</>
+  return <div key={revision} className="contents">{children}</div>
 }
 

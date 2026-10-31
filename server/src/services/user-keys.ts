@@ -3,16 +3,8 @@ import { getDb } from '../db/index.js';
 
 export const USER_KEY_PREFIX = 'sk-flm-';
 
-export interface UserApiKeyRow {
-  id: number;
-  userId: number;
-  name: string;
-  keyPrefix: string;
-  rpmLimit: number;
-  revoked: boolean;
-  createdAt: string;
-  lastUsedAt: string | null;
-}
+export type { UserApiKey as UserApiKeyRow } from '@freellmapi/shared/user-access.js';
+import type { UserApiKey as UserApiKeyRow } from '@freellmapi/shared/user-access.js';
 
 export interface ValidatedUserKey {
   userId: number;

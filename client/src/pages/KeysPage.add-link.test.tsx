@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { I18nProvider } from '@/i18n'
 import KeysPage from './KeysPage'
 
+vi.mock('@/custom/use-session', () => ({ useUserSession: () => ({ session: { role: 'admin' }, isPending: false, isError: false }) }))
 vi.mock('@/lib/api', () => ({ apiFetch: vi.fn(async () => []) }))
 // Only the page's own add-key wiring is under test; the sections are stubbed.
 vi.mock('@/components/keys/add-key-dialog', () => ({
