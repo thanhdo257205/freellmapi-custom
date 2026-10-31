@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { PageHeader } from '@/components/page-header'
 import type { ApiKey, Platform } from '../../../shared/types'
-import { Plus, Download } from 'lucide-react'
+import { Plus, Download, Ticket } from 'lucide-react'
 import { useI18n } from '@/i18n'
 import { LISTED_PLATFORMS, type HealthData } from '@/components/keys/shared'
 import { QuotaSignalsSection } from '@/components/keys/quota-signals-section'
@@ -20,6 +20,8 @@ import { ProviderChecklistSection } from '@/components/keys/provider-checklist-s
 import { AddKeyDialog } from '@/components/keys/add-key-dialog'
 import { ExportKeysDialog } from '@/components/keys/export-keys-dialog'
 import { AgentCompatibilitySection } from '@/components/keys/agent-compatibility-section'
+import { useUserSession } from '@/custom/use-session'
+import { MemberKeysView } from '@/custom/MemberKeysView'
 
 type KeysTab = 'providers' | 'quotaSignals' | 'apiKey' | 'anthropic' | 'agents'
 const KEYS_TABS: { id: KeysTab; labelKey: string }[] = [
@@ -54,17 +56,21 @@ export default function KeysPage() {
     setAddOpen(true)
   }
 
+  const { isMember } = useUserSession()
+
   // Kept at page level for the header's "Check all" gate; ProviderList runs the
   // same query (deduped by react-query) for the list itself.
   const { data: keys = [] } = useQuery<ApiKey[]>({
     queryKey: ['keys'],
     queryFn: () => apiFetch('/api/keys'),
+    enabled: !isMember,
   })
 
   const { data: healthData } = useQuery<HealthData>({
     queryKey: ['health'],
     queryFn: () => apiFetch('/api/health'),
     refetchInterval: 30000,
+    enabled: !isMember,
   })
 
   const checkAll = useMutation({
@@ -75,6 +81,10 @@ export default function KeysPage() {
     },
   })
 
+  if (isMember) {
+    return <MemberKeysView />
+  }
+
   return (
     <div>
       <PageHeader
@@ -82,6 +92,13 @@ export default function KeysPage() {
         description={t('keys.pageDescription')}
         actions={
           <>
+            <Link
+              to="/invites"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <Ticket className="size-3.5 mr-1.5" />
+              Invite Codes
+            </Link>
             {(tab === 'providers' || tab === 'quotaSignals') && keys.length > 0 && (
               <Button variant="outline" size="sm" onClick={() => checkAll.mutate()} disabled={checkAll.isPending}>
                 {checkAll.isPending ? t('keys.checking') : t('keys.checkAll')}
