@@ -1,8 +1,8 @@
 # Feature Specification: Google sign-in and email recovery
 
-**Feature Branch**: `codex/feat-google-login-email-reset`
+**Feature Branch**: `codex/feat-google-auth-recovery`
 **Created**: 2026-11-01
-**Status**: Ready for implementation
+**Status**: Implemented; live integration activation awaits operator credentials
 **Input**: Add Google login and forgotten-password emails delivered through Gmail.
 
 ## User Scenarios & Testing
