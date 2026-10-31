@@ -32,6 +32,12 @@ RUN npm prune --omit=dev
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 
+# The native libSQL transport uses the OS trust store rather than Node's
+# bundled roots. Slim removes it; retain certificates for Turso TLS.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV FREELLMAPI_INSTALL_METHOD=docker

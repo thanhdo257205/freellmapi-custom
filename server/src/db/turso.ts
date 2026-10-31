@@ -32,6 +32,15 @@ export function isTursoDatabase(db: Db): boolean {
   return remoteDatabases.has(db);
 }
 
+function sanitizedDriverError(error: unknown, secrets: readonly string[]): Error {
+  let message = error instanceof Error ? error.message : 'native driver error';
+  for (const secret of secrets) if (secret) message = message.split(secret).join('[redacted]');
+  const sanitized = new Error(message);
+  const code = error instanceof Error ? (error as Error & { code?: unknown }).code : undefined;
+  if (typeof code === 'string' && /^SQLITE_[A-Z_]+$/.test(code)) Object.assign(sanitized, { code });
+  return sanitized;
+}
+
 /** Preserve the synchronous application contract and support nested migrations.
  * Remote connections deliberately expose no local filename or memory flag. */
 export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly string[] = []): Db {
@@ -40,12 +49,7 @@ export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly stri
   function safe<T>(operation: () => T): T {
     try { return operation(); } catch (error) {
       if (!(error instanceof Error) || secrets.length === 0) throw error;
-      let message = error.message;
-      for (const secret of secrets) if (secret) message = message.split(secret).join('[redacted]');
-      const sanitized = new Error(message);
-      const code = (error as Error & { code?: unknown }).code;
-      if (typeof code === 'string' && /^SQLITE_[A-Z_]+$/.test(code)) Object.assign(sanitized, { code });
-      throw sanitized;
+      throw sanitizedDriverError(error, secrets);
     }
   }
   function row(value: unknown): unknown {
@@ -145,8 +149,9 @@ export const tursoFactory: DbFactory = () => {
   catch { throw new Error('Turso requires the libsql native driver. Reinstall dependencies for this platform.'); }
   try {
     return wrapTursoDatabase(new Libsql(config.url, { authToken: config.authToken }), true, [config.authToken, config.url]);
-  } catch {
+  } catch (error) {
     // Native transport errors may contain the URL or auth headers.
-    throw new Error('Could not connect to Turso. Check TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and network access.');
+    const detail = sanitizedDriverError(error, [config.authToken, config.url]);
+    throw new Error(`Could not connect to Turso. Check TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and network access. ${detail.message}`);
   }
 };
