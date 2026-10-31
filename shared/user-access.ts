@@ -16,6 +16,19 @@ export interface UserApiKey {
   lastUsedAt: string | null
 }
 
+export interface AdminUser {
+  id: number
+  email: string
+  role: 'admin' | 'member'
+  createdAt: string
+  /** Non-revoked `sk-flm-…` keys this account can still authenticate with. */
+  activeKeys: number
+  /** Unexpired dashboard sessions. */
+  sessions: number
+  /** True for the caller's own row — the UI disables self-demote and warns on self-revoke. */
+  isSelf: boolean
+}
+
 export interface InviteCode {
   id: number
   code: string

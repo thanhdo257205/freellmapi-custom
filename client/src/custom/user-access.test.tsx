@@ -13,6 +13,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { I18nProvider } from '@/i18n'
 import { InvitesPage } from '@/custom/InvitesPage'
+import { UsersPage } from '@/custom/UsersPage'
 import { MemberKeysView } from '@/custom/MemberKeysView'
 import { useSessionBoundary, getSessionRevision } from '@/custom/session-state'
 import { apiFetch, getToken, logout, setToken } from '@/lib/api'
@@ -439,5 +440,122 @@ describe('multi-user dashboard regressions', () => {
       'sk-flm-default-one-time-secret',
     )
     window.history.replaceState({}, '', '/')
+  })
+})
+
+const ADMIN_ROW = {
+  id: 1,
+  email: 'owner@example.com',
+  role: 'admin',
+  createdAt: '2026-01-01',
+  activeKeys: 0,
+  sessions: 1,
+  isSelf: true,
+}
+const MEMBER_ROW = {
+  id: 2,
+  email: 'guest@example.com',
+  role: 'member',
+  createdAt: '2026-02-01',
+  activeKeys: 2,
+  sessions: 3,
+  isSelf: false,
+}
+
+describe('admin users page', () => {
+  function stubUsers(rows: unknown[]) {
+    const calls: Array<{ url: string; method?: string; body?: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url, init) => {
+        calls.push({
+          url: String(url),
+          method: init?.method,
+          body: init?.body ? String(init.body) : undefined,
+        })
+        return json({ users: rows })
+      }),
+    )
+    return calls
+  }
+
+  it('labels the caller row and refuses to offer a self-demote', async () => {
+    stubUsers([ADMIN_ROW, MEMBER_ROW])
+    mount(<UsersPage />)
+    await flush()
+
+    expect(container.textContent).toContain('owner@example.com')
+    expect(container.textContent).toContain('You')
+    expect(container.textContent).toContain('Accounts (2)')
+    expect(container.textContent).toContain('Sessions: 3')
+
+    const selfAction = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Demote to member',
+    )!
+    expect(selfAction.disabled).toBe(true)
+  })
+
+  it('fires the role change only on the second click of the armed button', async () => {
+    const calls = stubUsers([ADMIN_ROW, MEMBER_ROW])
+    mount(<UsersPage />)
+    await flush()
+
+    const promote = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Promote to admin',
+    )!
+    act(() => promote.click())
+    await flush()
+    // Armed, not yet sent: the label swapped to the confirmation copy.
+    expect(
+      container.textContent?.includes('Confirm promote'),
+    ).toBe(true)
+    expect(
+      calls.some((c) => c.method === 'PATCH'),
+    ).toBe(false)
+
+    const armed = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Confirm promote',
+    )!
+    act(() => armed.click())
+    await flush()
+    const patch = calls.find((c) => c.method === 'PATCH')
+    expect(patch?.url).toContain('/api/admin/users/2/role')
+    expect(JSON.parse(patch!.body!)).toEqual({ role: 'admin' })
+  })
+
+  it('filters rows without asking the server again', async () => {
+    const calls = stubUsers([ADMIN_ROW, MEMBER_ROW])
+    mount(<UsersPage />)
+    await flush()
+    const readsBefore = calls.filter((c) => !c.method).length
+
+    const input = container.querySelector('input')!
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      'value',
+    )!.set!
+    act(() => {
+      setter.call(input, 'guest')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await flush()
+
+    expect(container.textContent).toContain('guest@example.com')
+    expect(container.textContent).not.toContain('owner@example.com')
+    expect(calls.filter((c) => !c.method)).toHaveLength(readsBefore)
+  })
+
+  it('shows an alert with a retry instead of an empty list when the read fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        json({ error: { message: 'Forbidden', type: 'forbidden' } }, 403)),
+    )
+    mount(<UsersPage />)
+    await flush()
+
+    expect(container.querySelector('[role="alert"]')).not.toBeNull()
+    expect(container.textContent).toContain('Forbidden')
+    expect(container.textContent).not.toContain('No accounts yet')
   })
 })
