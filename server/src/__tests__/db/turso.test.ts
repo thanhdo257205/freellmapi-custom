@@ -95,7 +95,7 @@ describe('libSQL adapter', () => {
 
   it('runs every migration and supports migration down/up with existing auth data', async () => {
     vi.stubEnv('ENCRYPTION_KEY', 'a'.repeat(64));
-    const db = wrapTursoDatabase(new Database(':memory:'), false);
+    const db = wrapTursoDatabase(new Database(':memory:'));
     try {
       db.pragma('foreign_keys = ON');
       runMigrationsSync(db);
@@ -109,6 +109,23 @@ describe('libSQL adapter', () => {
       await runMigrations(db, 'up');
       expect(db.prepare('SELECT email, role FROM users').get()).toEqual({ email: 'trial@example.com', role: 'admin' });
       expect(db.pragma('foreign_key_check')).toEqual([]);
+    } finally { db.close?.(); }
+  });
+
+  it('keeps reserved migration staging tables within a transaction on remote storage', () => {
+    const raw = new Database(':memory:');
+    const exec = vi.spyOn(raw, 'exec');
+    const db = wrapTursoDatabase(raw);
+    try {
+      db.exec('CREATE TABLE items(value TEXT); INSERT INTO items VALUES (\'saved\')');
+      expect(db.transaction(() => {
+        db.exec('CREATE TEMP TABLE "_endpoint_identity_items" AS SELECT * FROM items');
+        expect(db.prepare('SELECT value FROM _endpoint_identity_items').get()).toEqual({ value: 'saved' });
+        throw new Error('rollback staging');
+      })).toThrow('rollback staging');
+      expect(exec).toHaveBeenCalledWith('CREATE TABLE "_endpoint_identity_items" AS SELECT * FROM items');
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE name='_endpoint_identity_items'").get()).toBeUndefined();
+      expect(db.prepare('SELECT value FROM items').get()).toEqual({ value: 'saved' });
     } finally { db.close?.(); }
   });
 
