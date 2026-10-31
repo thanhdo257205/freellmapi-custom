@@ -1,3 +1,4 @@
+import * as customExternalAuth from '../migrations/20261101_020000_custom_external_auth.js';
 import type { Db } from '../types.js';
 import * as legacyBaseline from '../migrations/20260101_000000_legacy_baseline.js';
 import * as customProviderModalities from '../migrations/20260627_000001_custom_provider_modalities.js';
@@ -108,6 +109,8 @@ export const REMOVE_AURAY_PROVIDER_FILENAME = '20261019_000001_remove_auray_prov
 export const KEY_LAST_HEALTHY_AT_FILENAME = '20261020_000001_key_last_healthy_at.ts';
 export const CUSTOM_USER_ROLES_AND_KEYS_FILENAME = '20261031_155642_custom_user_roles_and_keys.ts';
 
+export const CUSTOM_EXTERNAL_AUTH_FILENAME = '20261101_020000_custom_external_auth.ts';
+
 export const DEFAULT_MIGRATIONS: readonly DefaultMigration[] = [
   { filename: LEGACY_BASELINE_FILENAME, module: legacyBaseline },
   { filename: CUSTOM_PROVIDER_MODALITIES_FILENAME, module: customProviderModalities },
@@ -157,4 +160,5 @@ export const DEFAULT_MIGRATIONS: readonly DefaultMigration[] = [
   { filename: REMOVE_AURAY_PROVIDER_FILENAME, module: removeAurayProvider },
   { filename: KEY_LAST_HEALTHY_AT_FILENAME, module: keyLastHealthyAt },
   { filename: CUSTOM_USER_ROLES_AND_KEYS_FILENAME, module: migration20261031_155642_custom_user_roles_and_keys },
+  { filename: CUSTOM_EXTERNAL_AUTH_FILENAME, module: customExternalAuth },
 ];
