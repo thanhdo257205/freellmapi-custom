@@ -7,6 +7,7 @@ import { runMigrationsSync } from './migrate/runner.js';
 import { initEncryptionKey, isEncryptionKeyInitialized, probeStoredSecrets } from '../lib/crypto.js';
 import { restrictAllToOwner, restrictDirToOwner } from '../lib/file-permissions.js';
 import { nodeSqliteFactory } from './node-sqlite.js';
+import { tursoEnabled, tursoFactory } from './turso.js';
 import type { Db, DbFactory } from './types.js';
 
 export type { Db, DbFactory } from './types.js';
@@ -58,8 +59,9 @@ export function connectDb(
 ): Db {
   const resolvedPath = dbPath ?? getDefaultDbPath();
   const isMemory = resolvedPath === ':memory:';
-  const ensureDir = opts?.ensureDir ?? true;
-  const factory = opts?.factory ?? defaultDbFactory();
+  const remote = !opts?.factory && !isMemory && tursoEnabled();
+  const ensureDir = !remote && (opts?.ensureDir ?? true);
+  const factory = opts?.factory ?? (remote ? tursoFactory : defaultDbFactory());
 
   // Gated on ensureDir along with the mkdir: that flag means "this process does
   // not shape the filesystem here", and changing a directory's permissions is
@@ -86,9 +88,9 @@ export function connectDb(
   // request fails. Five seconds is far longer than any write here takes.
   db.pragma('busy_timeout = 5000');
 
-  if (!isMemory) restrictDbFilePermissions(resolvedPath);
+  if (!isMemory && !remote) restrictDbFilePermissions(resolvedPath);
 
-  console.log(`Database initialized at ${resolvedPath}`);
+  console.log(remote ? 'Database initialized with Turso (remote libSQL)' : `Database initialized at ${resolvedPath}`);
   return db;
 }
 
