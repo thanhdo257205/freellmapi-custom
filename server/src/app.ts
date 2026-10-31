@@ -36,9 +36,6 @@ import { urlTokenRouter } from './routes/url-tokens.js';
 import { updateRouter } from './routes/update.js';
 import { moderationRouter } from './routes/moderation.js';
 import { requireAuth } from './middleware/requireAuth.js';
-import { requireAdmin } from './middleware/requireAdmin.js';
-import { invitesRouter } from './routes/invites.js';
-import { userKeysRouter } from './routes/user-keys.js';
 import { createHostGuard } from './middleware/allowed-hosts.js';
 import { createProxyRateLimiter, createAdminRateLimiter } from './middleware/rateLimit.js';
 
@@ -254,18 +251,18 @@ export function createApp(config?: Config) {
   // tight per-IP bucket on top of it.
   app.use('/api/keys/export', createAdminRateLimiter(EXPORT_RATE_LIMIT_RPM));
 
-  app.use('/api/keys', requireAuth, requireAdmin, keysRouter);
+  app.use('/api/keys', requireAuth, keysRouter);
   // Per-client key management (#411). Dashboard-session gated like the rest of
   // /api — the profile keys it mints authenticate only the /v1 inference
   // surface and are never valid here.
-  app.use('/api/client-profiles', requireAuth, requireAdmin, clientProfilesRouter);
+  app.use('/api/client-profiles', requireAuth, clientProfilesRouter);
   // Saved Playground transcripts (the chat sidebar). Dashboard-session gated
   // like every other admin route; the unified /v1 key does not open it.
   app.use('/api/conversations', requireAuth, conversationsRouter);
   // Server logs for the dashboard viewer. Dashboard-session gated like the rest
   // of /api — these lines name providers, models and key ids, so the unified
   // /v1 key must not open them.
-  app.use('/api/logs', requireAuth, requireAdmin, logsRouter);
+  app.use('/api/logs', requireAuth, logsRouter);
   app.use('/api/models', requireAuth, modelsRouter);
   app.use('/api/profiles', requireAuth, profilesRouter);
   app.use('/api/fallback', requireAuth, fallbackRouter);
@@ -276,17 +273,15 @@ export function createApp(config?: Config) {
   app.use('/api/analytics', requireAuth, analyticsRouter);
   app.use('/api/health', requireAuth, healthRouter);
   app.use('/api/free-tier', requireAuth, freeTierRouter);
-  app.use('/api/settings', requireAuth, requireAdmin, settingsRouter);
+  app.use('/api/settings', requireAuth, settingsRouter);
   app.use('/api/premium', requireAuth, premiumRouter);
   // Database dumps and restores. Dashboard-session gated: the dump files carry
   // encrypted provider keys and every routing setting, so the unified /v1 key
   // must not open this surface.
-  app.use('/api/backups', requireAuth, requireAdmin, backupsRouter);
+  app.use('/api/backups', requireAuth, backupsRouter);
   app.use('/api/cache', requireAuth, cacheRouter);
   app.use('/api/compression', requireAuth, compressionRouter);
-  app.use('/api/update', requireAuth, requireAdmin, updateRouter);
-  app.use('/api/invites', requireAuth, requireAdmin, invitesRouter);
-  app.use('/api/user', requireAuth, userKeysRouter);
+  app.use('/api/update', requireAuth, updateRouter);
 
   // Health check — no auth required.
   app.get('/api/ping', (_req, res) => {
