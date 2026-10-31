@@ -70,7 +70,24 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
   const [attempted, setAttempted] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
 
+  // URL query parameter support: ?invite=... or ?mode=register defaults to registration
+  const [inviteParam] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    const params = new URLSearchParams(window.location.search)
+    return params.get('invite') || ''
+  })
+  const [registerParam] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const params = new URLSearchParams(window.location.search)
+    return params.get('mode') === 'register' || !!params.get('invite')
+  })
+
+  const [authView, setAuthView] = useState<'login' | 'register'>(registerParam ? 'register' : 'login')
+  const [inviteCode, setInviteCode] = useState(inviteParam)
+
   const isSetup = mode === 'setup'
+  const isRegister = !isSetup && authView === 'register'
+  const isLogin = !isSetup && authView === 'login'
 
   // Inline field feedback; the server stays authoritative. Only the setup form
   // enforces the password minimum client-side (an existing password of any
@@ -78,29 +95,42 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
   // the desktop app's hidden account is `desktop@localhost` (no TLD), which
   // the login route accepts on purpose (server/src/routes/auth.ts), so a
   // browser tab must be able to submit it after a password reset (#1250).
+  const inviteError = isRegister && !inviteCode.trim() ? 'Invite code is required' : null
   const emailError = !email.trim()
     ? t('validation.required')
-    : isSetup && !isEmail(email)
+    : (isSetup || isRegister) && !isEmail(email)
       ? t('validation.email')
       : null
   const passwordError = !password
     ? t('validation.required')
-    : isSetup && password.length < PASSWORD_MIN
+    : (isSetup || isRegister) && password.length < PASSWORD_MIN
       ? t('validation.passwordMin', { min: PASSWORD_MIN })
       : null
 
+  const showInviteError = attempted && !!inviteError
   const showEmailError = attempted && !!emailError
   const showPasswordError = attempted && !!passwordError
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (emailError || passwordError) {
+    if (emailError || passwordError || inviteError) {
       setAttempted(true)
       return
     }
     setBusy(true)
     setError('')
     try {
+      if (isRegister) {
+        const res = await apiFetch<{ token: string; email: string; role: string; apiKey?: string }>('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ email: email.trim(), password, inviteCode: inviteCode.trim() }),
+        })
+        setToken(res.token)
+        toast.success('Account created! Welcome to FreeLLMAPI.')
+        onAuthed()
+        return
+      }
+
       const payload: Record<string, string> = { email, password }
       // Only the setup flow carries a code, and only once the server has asked
       // for it. The server ignores it for local (loopback) setup.
@@ -134,20 +164,45 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
         <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
       </div>
       <div className="rounded-3xl border bg-card p-6">
-        <h1 className="text-lg font-semibold tracking-tight">{isSetup ? t('auth.createYourAccount') : t('auth.signIn')}</h1>
+        <h1 className="text-lg font-semibold tracking-tight">
+          {isSetup
+            ? t('auth.createYourAccount')
+            : isRegister
+              ? 'Register with invite code'
+              : t('auth.signIn')}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1.5 mb-6">
           {isSetup
             ? t('auth.setupDescription')
-            : t('auth.loginDescription')}
+            : isRegister
+              ? 'Enter your invite code, email, and password to create an account.'
+              : t('auth.loginDescription')}
         </p>
         <form onSubmit={submit} className="space-y-4" noValidate>
+          {isRegister && (
+            <div className="space-y-1.5">
+              <Label className="text-xs" htmlFor="auth-invite-code">Invite code</Label>
+              <Input
+                id="auth-invite-code"
+                type="text"
+                autoComplete="off"
+                autoFocus
+                value={inviteCode}
+                onChange={e => setInviteCode(e.target.value)}
+                placeholder="INV-XXXX-XXXX"
+                aria-invalid={showInviteError}
+                aria-describedby={showInviteError ? 'auth-invite-error' : undefined}
+              />
+              {attempted && <FieldError id="auth-invite-error" error={inviteError} />}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-xs" htmlFor="auth-email">{t('auth.email')}</Label>
             <Input
               id="auth-email"
               type="email"
               autoComplete="username"
-              autoFocus
+              autoFocus={!isRegister}
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder={t('auth.emailPlaceholder')}
@@ -160,10 +215,10 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
             <Label className="text-xs" htmlFor="auth-password">{t('auth.password')}</Label>
             <PasswordInput
               id="auth-password"
-              autoComplete={isSetup ? 'new-password' : 'current-password'}
+              autoComplete={isSetup || isRegister ? 'new-password' : 'current-password'}
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder={isSetup ? t('auth.passwordPlaceholderSetup') : t('auth.passwordPlaceholderLogin')}
+              placeholder={isSetup || isRegister ? t('auth.passwordPlaceholderSetup') : t('auth.passwordPlaceholderLogin')}
               aria-invalid={showPasswordError}
               aria-describedby={showPasswordError ? 'auth-password-error' : undefined}
             />
@@ -193,17 +248,41 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           )}
           <Button type="submit" className="w-full h-10" disabled={busy}>
             {busy && <Loader2 className="animate-spin" aria-hidden />}
-            {busy ? (isSetup ? t('auth.creating') : t('auth.signingIn')) : isSetup ? t('auth.createAccount') : t('auth.signIn')}
+            {busy
+              ? (isSetup ? t('auth.creating') : isRegister ? 'Creating account…' : t('auth.signingIn'))
+              : isSetup ? t('auth.createAccount') : isRegister ? 'Register' : t('auth.signIn')}
           </Button>
         </form>
-        {!isSetup && (
-          <button
-            type="button"
-            onClick={() => setShowForgot(true)}
-            className="mt-3 w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {t('auth.forgotPassword')}
-          </button>
+        {isLogin && (
+          <div className="mt-3 space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowForgot(true)}
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t('auth.forgotPassword')}
+            </button>
+            <div className="pt-3 border-t text-center">
+              <button
+                type="button"
+                onClick={() => { setAuthView('register'); setError(''); setAttempted(false) }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Have an invite code? <span className="font-medium text-foreground underline underline-offset-2">Register here</span>
+              </button>
+            </div>
+          </div>
+        )}
+        {isRegister && (
+          <div className="mt-4 pt-3 border-t text-center">
+            <button
+              type="button"
+              onClick={() => { setAuthView('login'); setError(''); setAttempted(false) }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Already have an account? <span className="font-medium text-foreground underline underline-offset-2">Sign in</span>
+            </button>
+          </div>
         )}
       </div>
     </Centered>
