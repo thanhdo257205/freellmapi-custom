@@ -34,6 +34,10 @@
 - **Independent Migrations**: Schema alterations must be placed in a new migration file (`server/src/db/migrations/YYYYMMDD_HHMMSS_<feature>.ts`). NEVER edit existing upstream migration files.
 - **Upstream Sync Procedure**: Follow the protocol documented in [`AGENTS.md`](file:///AGENTS.md) when syncing changes from `upstream/main`.
 
+### VII. Branching & Pull Request Workflow (MANDATORY FOR AGENTS)
+- **Branch-First Development**: Never push direct commits to `main` for bug fixes or features.
+- **Pull Request Lifecycle**: Every change must be developed on a dedicated branch (`fix/*`, `feat/*`, `chore/*`), verified with tests and builds, pushed to `origin`, and merged into `main` via a GitHub Pull Request.
+
 ## Technology Stack & Constraints
 - Runtime: Node.js (>= 20.18.0 < 25.0.0), TypeScript, ESM modules (`"type": "module"`).
 - Database: SQLite via `better-sqlite3` with WAL mode.
@@ -45,4 +49,4 @@
 - All Spec Kit workflows (`/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, `/speckit-implement`) must enforce these principles.
 - Any amendment requires updating this document with explicit rationale.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-31 | **Last Amended**: 2026-10-31
+**Version**: 1.2.0 | **Ratified**: 2026-10-31 | **Last Amended**: 2026-11-01
