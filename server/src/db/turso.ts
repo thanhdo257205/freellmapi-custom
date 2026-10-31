@@ -92,7 +92,15 @@ export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly stri
   }
   const db: Db = {
     prepare: statement,
-    exec: sql => safe(() => raw.exec(sql)),
+    exec: sql => {
+      // Upstream's endpoint-identity migration parks child rows in TEMP tables.
+      // Turso disallows TEMP. These reserved tables are created and dropped in
+      // the same write transaction, so ordinary tables have the same lifetime.
+      const compatible = remote && depth > 0
+        ? sql.replace(/^(\s*CREATE\s+)TEMP(?:ORARY)?\s+(TABLE\s+"_endpoint_identity_[a-z_]+"\s+AS\b)/i, '$1$2')
+        : sql;
+      safe(() => raw.exec(compatible));
+    },
     pragma: source => {
       // These are controlled by Turso, not by individual remote connections.
       if (remote && /^\s*(journal_mode|busy_timeout|wal_checkpoint)\b/i.test(source)) return [];

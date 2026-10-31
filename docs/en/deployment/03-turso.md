@@ -44,9 +44,21 @@ npx tsx server/src/scripts/turso-smoke.ts --disposable
 
 The smoke script refuses databases with existing users. It initializes the
 schema, creates temporary account/session/invite/API-key records, checks
-rollback and persistence after reconnect, reports query latency, then removes
+rollback and persistence after reconnect, checks HTTP health/login/key/model
+routes, reports query latency, then removes
 its test records. It leaves the normal initialized schema/catalog in place.
 Use only the dedicated trial database. Do not run two instances against it.
+
+The empty trial correctly returns HTTP 503 from `/readyz` with
+`no_upstreams_configured` until you configure a provider. `/livez` and
+`/api/ping` return 200. The trial does not call any LLM provider.
+
+The initial cloud trial on 2026-10-31 completed migrations and persistence
+checks. Warm initialization took about 0.7 seconds; individual SELECT calls
+from the development machine were usually 133–145 ms, with a 292 ms sample.
+These are development-machine measurements, not a Render load benchmark.
+The Windows native driver also emitted a shutdown warning about an unavailable
+runtime after closing a stream; the persistence and HTTP checks still passed.
 
 ## Move existing Render data
 
