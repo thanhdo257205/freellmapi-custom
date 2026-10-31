@@ -22,8 +22,9 @@ So that `git merge upstream/main` stays conflict-free, every HTTP piece of this 
 | [`server/src/routes/invites.ts`](../../../server/src/routes/invites.ts), [`server/src/routes/user-keys.ts`](../../../server/src/routes/user-keys.ts) | Fork-only routers. |
 | [`server/src/middleware/requireAdmin.ts`](../../../server/src/middleware/requireAdmin.ts) | The gate itself. |
 | [`server/src/__tests__/custom/surface.test.ts`](../../../server/src/__tests__/custom/surface.test.ts) | Tripwire: fails if a merge drops the gate, a mount, or the custom migration registration. |
+| [`client/src/custom/`](../../../client/src/custom/) | Dashboard side, added later: `use-session.ts` (the only reader of `role`), `InvitesPage.tsx`, `MemberKeysView.tsx`. The invite-gated register form is an edit inside upstream's `components/auth-gate.tsx` and `App.tsx`. |
 
-Upstream's [`server/src/app.ts`](../../../server/src/app.ts) carries two added lines (an import and one `registerCustomRoutes(app)` call) and its [`server/src/routes/auth.ts`](../../../server/src/routes/auth.ts) is byte-identical to `upstream/main`. The remaining upstream-file edits in this domain are additive and in low-churn files (`services/auth.ts`, `lib/system-prompt.ts`, `db/migrate/defaults.ts`). See [01 — Exact mount table](01-roles-and-invite-registration.md#exact-mount-table).
+Upstream's [`server/src/app.ts`](../../../server/src/app.ts) carries five added lines and no modified ones — the `registerCustomRoutes` import, its call, and the two comment lines plus the blank that document it (`git diff upstream/main -- server/src/app.ts` → `5 0`). Its [`server/src/routes/auth.ts`](../../../server/src/routes/auth.ts) is byte-identical to `upstream/main`. The remaining upstream-file edits in this domain are additive and in low-churn files (`services/auth.ts`, `lib/system-prompt.ts`, `db/migrate/defaults.ts`). See [01 — Exact mount table](01-roles-and-invite-registration.md#exact-mount-table).
 
 ## Deviation from upstream
 
