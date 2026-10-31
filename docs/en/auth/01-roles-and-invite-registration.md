@@ -10,6 +10,7 @@ How one FreeLLMAPI instance serves several named people: the `role` column on th
 |---|---|---|
 | Who gets it | The first account created on the install (dashboard setup), and every account that already existed when the RBAC migration ran ([server/src/db/migrations/20261031_155642_custom_user_roles_and_keys.ts:19](../../../server/src/db/migrations/20261031_155642_custom_user_roles_and_keys.ts#L19)) | Everyone created through invite registration; also the column default for any insert that omits `role` |
 | Dashboard session | Yes | Yes |
+| Dashboard navigation | Everything, plus an **Invites** page ([client/src/App.tsx:260](../../../client/src/App.tsx#L260), route `:511`) | `/analytics` and `/premium` hidden; `/keys` renders the member's own key manager ([client/src/pages/KeysPage.tsx:84](../../../client/src/pages/KeysPage.tsx#L84)) |
 | Provider keys, proxy settings, server logs, DB backups, self-update, invites | Yes | **No — `403 forbidden`** |
 | Models, fallback chain, profiles, analytics, health, cache, compression, conversations, premium | Yes | Yes (see [Known gaps](#known-gaps)) |
 | Own personal API keys (`/api/user/keys`) | Yes | Yes |
@@ -19,6 +20,7 @@ How one FreeLLMAPI instance serves several named people: the `role` column on th
 - Enforcement is one middleware, [`requireAdmin`](../../../server/src/middleware/requireAdmin.ts#L8), mounted as a **single app-level guard** over the admin-only prefixes ([server/src/custom/register.ts:35](../../../server/src/custom/register.ts#L35)), called from one added line in upstream's `createApp` ([server/src/app.ts:246](../../../server/src/app.ts#L246)). It answers `403` with `{ error: { type: 'forbidden' } }`.
 - The guard is registered **before** upstream mounts its own `/api/keys`, `/api/settings`, … lines, and the `ADMIN_ONLY_PREFIXES` list ([server/src/custom/register.ts:20](../../../server/src/custom/register.ts#L20)) lives entirely in fork code. That ordering is deliberate: an upstream commit that rewrites or reorders its `app.use` lines cannot silently remove the gate. (Gating the router objects themselves does **not** work — `router.use()` appends to a stack that is already populated at import time, so the routes answer first.) An admin request therefore validates the session twice, one extra indexed `SELECT` per admin call.
 - Role is **not** added to upstream's auth responses. `GET /api/auth/status`, `POST /api/auth/login`, `GET /api/auth/me` and `POST /api/auth/setup` stay byte-identical to upstream; the fork exposes the same information on `GET /api/user/session` → `{ email, role, userId }` ([server/src/routes/user-keys.ts:20](../../../server/src/routes/user-keys.ts#L20)).
+- The dashboard reads that one endpoint and nothing else for role: [`useUserSession`](../../../client/src/custom/use-session.ts#L10) caches it and returns `isAdmin` / `isMember` ([`:21`](../../../client/src/custom/use-session.ts#L21)), which is what the nav filter, the Invites page and the member key view branch on. Nothing in `client/` infers a role from the account list or the session token.
 
 ### Exact mount table
 
@@ -58,6 +60,8 @@ Codes live in the `invite_codes` table ([migration:26](../../../server/src/db/mi
 ## Registration flow
 
 `POST /api/auth/register` ([server/src/custom/auth.ts:23](../../../server/src/custom/auth.ts#L23)) is the only way a non-admin account comes into existence. There is no env flag that turns it off, and no open `signup` route.
+
+The dashboard drives it from the same URL: `/?mode=register` or, better, `/?invite=CODE` opens the register form with the code pre-filled ([client/src/components/auth-gate.tsx:73](../../../client/src/components/auth-gate.tsx#L73)), and a successful submit stores the returned session token and shows the one-time `apiKey` ([`:124`](../../../client/src/components/auth-gate.tsx#L124)). Send an invite link in that form and the person never has to type a code. That register view has no client-side test — the `client/` suites were not extended in `30de3e2b` — so the server-side `400 invalid_invite_code` / `409 email_taken` answers are the behavior actually under test (see [Verification](#verification)).
 
 ```
 1. validateInviteCode(code)         → 400 invalid_invite_code  (reason-specific message)
@@ -105,7 +109,7 @@ Read these before relying on the model.
 
 - **Gap: member-write surfaces.** `/api/models`, `/api/profiles`, `/api/fallback`, `/api/cache`, `/api/compression`, `/api/premium` and `/api/conversations` are `requireAuth` only, and each has `POST`/`PUT`/`PATCH`/`DELETE` handlers. A member can therefore enable or disable catalog models, reorder the shared fallback chain, change global cache and compression settings, and replace the instance's premium license or open the billing portal (`/api/premium/key`, `/api/premium/portal`) — all of which affect every other user. `requireAdmin` currently protects the credential, settings, log, backup, update and invite surfaces only.
 - **Gap: the claim result is not checked.** `register` ignores the boolean from `claimInviteCode` ([server/src/custom/auth.ts:57](../../../server/src/custom/auth.ts#L57)). If two requests race for the last slot, the loser still gets an account — the counter stays correct, the cap on *accounts* does not.
-- **Gap: no role-aware UI.** `client/` never reads `role`: no register form, no invite page, no key manager. A member who opens the dashboard sees the admin navigation and gets `403`s from the gated pages. Everything in this domain is driven over HTTP.
+- **The dashboard UI is role-aware, but only cosmetically.** Since `30de3e2b`, `client/src/custom/` ships the invite admin page ([InvitesPage.tsx:35](../../../client/src/custom/InvitesPage.tsx#L35) → `GET`/`POST`/`DELETE /api/invites`), the member key manager ([MemberKeysView.tsx:33](../../../client/src/custom/MemberKeysView.tsx#L33) → `/api/user/keys`), and an invite-gated register form reachable at `/?mode=register` or `/?invite=CODE` ([auth-gate.tsx:73](../../../client/src/components/auth-gate.tsx#L73), submit at [`:124`](../../../client/src/components/auth-gate.tsx#L124)). Before that commit this page listed "no role-aware UI" as a gap; the UI exists now, and what replaced it is the caveat: hiding a nav item is **not** authorization. A member who calls `/api/models` or `/api/settings` directly still reaches whatever the server allows — the member-write gap above — so treat `ADMIN_ONLY_PREFIXES` as the only source of truth.
 - **No per-user quota or usage attribution.** See [02-user-api-keys.md](02-user-api-keys.md#what-is-not-enforced).
 
 ## Before exposing an instance
