@@ -1,8 +1,10 @@
 <div align="center">
 
-# FreeLLMAPI
+# FreeLLMAPI (Custom)
 
 **7.4 billion tokens per month.  34 free LLM providers. 635 free model endpoints. One OpenAI-compatible endpoint.**
+
+> 🌐 **Live Render Deployment**: [https://freellm-thanhdo.onrender.com](https://freellm-thanhdo.onrender.com)
 
 Aggregate free tiers from dozens of providers, plus custom OpenAI-compatible chat, embedding, image, and audio endpoints, behind a single `/v1` API. Keys are stored encrypted. A router picks the best available model for each request, falls over to the next provider when one is rate-limited, and tracks per-key usage so you stay under every free-tier cap.
 
