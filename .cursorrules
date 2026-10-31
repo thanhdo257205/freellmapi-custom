@@ -1,0 +1,5 @@
+# Cursor Rules for FreeLLMAPI Custom
+Always adhere to the instructions and guidelines in `AGENTS.md` and `.specify/memory/constitution.md`.
+1. All custom extensions must follow the Zero-Conflict Modular Design Rule (dedicated new files, minimal touch on upstream files).
+2. When synchronizing with the official upstream repository, follow the Upstream Synchronization Workflow in `AGENTS.md`.
+3. Never expose or log API keys or secrets in plaintext.
