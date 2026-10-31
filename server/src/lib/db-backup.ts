@@ -5,6 +5,7 @@ import { gzipSync, gunzipSync } from 'zlib';
 import type { Db } from '../db/types.js';
 import type { Scheduler } from './scheduler.js';
 import { getDefaultDbPath } from '../db/index.js';
+import { isTursoDatabase, tursoEnabled } from '../db/turso.js';
 import { restrictToOwner } from './file-permissions.js';
 
 const MAGIC = Buffer.from('FAPIBK1\0');
@@ -213,6 +214,7 @@ async function writeTarget(target: string, payload: Buffer): Promise<void> {
 }
 
 export async function restoreDbBackupIfNeeded(dbPath = getDefaultDbPath()): Promise<DbBackupResult> {
+  if (tursoEnabled()) return { ok: true, skipped: 'remote database' };
   const target = backupTarget();
   if (!target) return { ok: true, skipped: 'not configured' };
   if (dbPath === ':memory:') return { ok: true, target, skipped: 'memory database' };
@@ -242,6 +244,7 @@ export async function restoreDbBackupIfNeeded(dbPath = getDefaultDbPath()): Prom
 }
 
 export async function backupDbNow(db: Db, dbPath = getDefaultDbPath()): Promise<DbBackupResult> {
+  if (isTursoDatabase(db)) return { ok: true, skipped: 'remote database' };
   const target = backupTarget();
   if (!target) return { ok: true, skipped: 'not configured' };
   if (dbPath === ':memory:') return { ok: true, target, skipped: 'memory database' };
@@ -261,6 +264,7 @@ export async function backupDbNow(db: Db, dbPath = getDefaultDbPath()): Promise<
 }
 
 export function startDbBackupPump(db: Db, scheduler: Scheduler, dbPath = getDefaultDbPath()): (() => void) | null {
+  if (isTursoDatabase(db)) return null;
   if (!backupTarget()) return null;
   const run = () => {
     void backupDbNow(db, dbPath).catch(err => {

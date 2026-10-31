@@ -77,6 +77,7 @@ describe('Custom Multi-User & Invite System', () => {
 
     expect(invite.code).toBe('TEST-INV-1');
     expect(invite.maxUses).toBe(2);
+    expect(listInviteCodes().some(i => i.code === 'TEST-INV-1')).toBe(true);
 
     // Initial validation
     let validation = validateInviteCode('TEST-INV-1');
