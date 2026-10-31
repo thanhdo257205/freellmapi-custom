@@ -34,6 +34,14 @@ const KEYS_TABS: { id: KeysTab; labelKey: string }[] = [
 
 export default function KeysPage() {
   const { t } = useI18n()
+  const { session, isPending, isError, refetch } = useUserSession()
+  if (isPending) return <p role="status">{t('auth.loading')}</p>
+  if (isError || !session || (session.role !== 'admin' && session.role !== 'member')) return <div role="alert">Unable to load your account. <Button onClick={() => refetch()}>Retry</Button></div>
+  return session.role === 'member' ? <MemberKeysView /> : <AdminKeysPage />
+}
+
+function AdminKeysPage() {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<KeysTab>('providers')
   // `/keys?add=<platform>` opens Add key preselected to that provider, so other
@@ -56,21 +64,17 @@ export default function KeysPage() {
     setAddOpen(true)
   }
 
-  const { isMember } = useUserSession()
-
   // Kept at page level for the header's "Check all" gate; ProviderList runs the
   // same query (deduped by react-query) for the list itself.
   const { data: keys = [] } = useQuery<ApiKey[]>({
     queryKey: ['keys'],
     queryFn: () => apiFetch('/api/keys'),
-    enabled: !isMember,
   })
 
   const { data: healthData } = useQuery<HealthData>({
     queryKey: ['health'],
     queryFn: () => apiFetch('/api/health'),
     refetchInterval: 30000,
-    enabled: !isMember,
   })
 
   const checkAll = useMutation({
@@ -80,10 +84,6 @@ export default function KeysPage() {
       queryClient.invalidateQueries({ queryKey: ['keys'] })
     },
   })
-
-  if (isMember) {
-    return <MemberKeysView />
-  }
 
   return (
     <div>

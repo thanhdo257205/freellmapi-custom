@@ -1,3 +1,5 @@
+import { getSessionRevision, notifySessionChanged } from '@/custom/session-state';
+
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 const TOKEN_KEY = 'freellmapi_dashboard_token';
 
@@ -7,10 +9,21 @@ export function getToken(): string | null {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
 }
 export function setToken(token: string): void {
+  const previous = getToken();
   try { localStorage.setItem(TOKEN_KEY, token); } catch { /* ignore */ }
+  if (previous !== getToken()) notifySessionChanged();
 }
 export function clearToken(): void {
+  const previous = getToken();
   try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+  if (previous !== getToken()) notifySessionChanged();
+}
+
+// Changes made in another tab must also end this tab's cached identity.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', event => {
+    if (event.key === TOKEN_KEY || event.key === null) notifySessionChanged();
+  });
 }
 
 export const UNAUTHORIZED_EVENT = 'freellmapi:unauthorized';
@@ -24,6 +37,12 @@ export interface ApiError extends Error {
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
+  const revision = getSessionRevision();
+  const assertCurrentSession = () => {
+    if (revision !== getSessionRevision() || token !== getToken()) {
+      throw new DOMException('The dashboard session changed', 'AbortError');
+    }
+  };
   const headers = new Headers(options?.headers);
   const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData;
   if (!isFormData && !headers.has('Content-Type')) {
@@ -39,8 +58,10 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     ...options,
     headers,
   });
+  assertCurrentSession();
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    assertCurrentSession();
     // A 401 ends the dashboard session ONLY when it is OUR auth saying so.
     // Discover/probe endpoints deliberately relay an upstream provider's 401
     // ("the endpoint rejected the key") with its status intact; treating those
@@ -71,6 +92,7 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   // the setup/login form surfaces as "sign up page cannot work". Say what's
   // actually wrong. (#257)
   const text = await res.text();
+  assertCurrentSession();
   try {
     return JSON.parse(text) as T;
   } catch {
@@ -82,7 +104,8 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 }
 
 export async function logout(): Promise<void> {
-  try { await apiFetch('/api/auth/logout', { method: 'POST' }); } catch { /* ignore */ }
+  const request = apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => { /* ignore */ });
   clearToken();
   window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+  await request;
 }

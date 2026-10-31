@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api'
 import KeysPage from '@/pages/KeysPage'
 import type { ProviderQuotaState, QuotaOutlookPool, QuotaOutlookResponse } from '../../../../shared/types'
 
+vi.mock('@/custom/use-session', () => ({ useUserSession: () => ({ session: { role: 'admin' }, isPending: false, isError: false }) }))
 vi.mock('@/lib/api', () => ({ apiFetch: vi.fn() }))
 vi.mock('./provider-list', () => ({ ProviderList: () => null }))
 vi.mock('./provider-checklist-section', () => ({ ProviderChecklistSection: () => null }))

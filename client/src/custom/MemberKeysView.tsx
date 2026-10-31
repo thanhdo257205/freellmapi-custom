@@ -9,21 +9,14 @@ import { PageHeader } from '@/components/page-header'
 import { CopyButton } from '@/components/copy-button'
 import { toast } from '@/lib/toast'
 
-export interface UserApiKey {
-  id: number
-  name: string
-  keyPrefix: string
-  rpmLimit: number | null
-  createdAt: string
-  lastUsedAt: string | null
-  revokedAt: string | null
-}
+import type { UserApiKey } from '../../../shared/user-access'
+export type { UserApiKey } from '../../../shared/user-access'
 
 export function MemberKeysView() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [keyName, setKeyName] = useState('')
-  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<{ id: number; secret: string } | null>(null)
   const [guideTab, setGuideTab] = useState<'cursor' | 'cline' | 'terminal' | 'python'>('cursor')
 
   const baseUrl = typeof window !== 'undefined' ? `${window.location.origin}/v1` : 'https://freellm-thanhdo.onrender.com/v1'
@@ -43,7 +36,8 @@ export function MemberKeysView() {
       }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['user-api-keys'] })
-      setNewlyCreatedKey(res.key.key)
+      setNewlyCreatedKey({ id: res.key.id, secret: res.key.key })
+      setCreateOpen(false)
       setKeyName('')
       toast.success('API Key generated successfully')
     },
@@ -57,7 +51,8 @@ export function MemberKeysView() {
       apiFetch<{ success: boolean }>(`/api/user/keys/${id}`, {
         method: 'DELETE',
       }),
-    onSuccess: () => {
+    onSuccess: (_res, id) => {
+      setNewlyCreatedKey(current => current?.id === id ? null : current)
       queryClient.invalidateQueries({ queryKey: ['user-api-keys'] })
       toast.success('API Key revoked')
     },
@@ -102,9 +97,9 @@ export function MemberKeysView() {
           </p>
           <div className="flex items-center gap-2">
             <div className="flex-1 font-mono text-xs bg-background/80 border rounded-lg px-3 py-2 text-foreground break-all select-all">
-              {newlyCreatedKey}
+              {newlyCreatedKey.secret}
             </div>
-            <CopyButton text={newlyCreatedKey} label="Copy API key" className="h-9 px-3" />
+            <CopyButton text={newlyCreatedKey.secret} label="Copy API key" className="h-9 px-3" />
           </div>
         </div>
       )}
@@ -112,7 +107,7 @@ export function MemberKeysView() {
       {/* Keys List */}
       <div className="rounded-2xl border bg-card overflow-hidden">
         <div className="border-b px-5 py-3.5 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Active Keys ({keys.length})</h2>
+          <h2 className="text-sm font-semibold">Active Keys ({keys.filter(key => !key.revoked).length})</h2>
         </div>
 
         {isLoading ? (
@@ -141,7 +136,8 @@ export function MemberKeysView() {
                     <span>Last used: {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : 'Never'}</span>
                   </div>
                 </div>
-                <Button
+                {k.revoked ? <span className="text-xs text-muted-foreground">Revoked</span> : <Button
+                  disabled={revokeKeyMutation.isPending}
                   variant="ghost"
                   size="sm"
                   onClick={() => handleRevoke(k.id, k.name)}
@@ -149,7 +145,7 @@ export function MemberKeysView() {
                 >
                   <Trash2 className="size-3.5 mr-1" />
                   Revoke
-                </Button>
+                </Button>}
               </div>
             ))}
           </div>

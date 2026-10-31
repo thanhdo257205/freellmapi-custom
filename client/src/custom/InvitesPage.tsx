@@ -9,17 +9,8 @@ import { PageHeader } from '@/components/page-header'
 import { CopyButton } from '@/components/copy-button'
 import { toast } from '@/lib/toast'
 
-export interface InviteCode {
-  id: number
-  code: string
-  maxUses: number
-  usedCount: number
-  expiresAt: string | null
-  revokedAt: string | null
-  note: string | null
-  createdBy: number
-  createdAt: string
-}
+import type { InviteCode } from '../../../shared/user-access'
+export type { InviteCode } from '../../../shared/user-access'
 
 export function InvitesPage() {
   const queryClient = useQueryClient()
@@ -46,6 +37,7 @@ export function InvitesPage() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['invites'] })
       setCreatedInvite(res.invite)
+      setCreateOpen(false)
       setCode('')
       setNote('')
       setMaxUses('1')
@@ -145,10 +137,10 @@ export function InvitesPage() {
         ) : (
           <div className="divide-y">
             {invites.map((inv) => {
-              const isRevoked = !!inv.revokedAt
-              const isExpired = inv.expiresAt ? new Date(inv.expiresAt).getTime() < Date.now() : false
-              const isExhausted = inv.usedCount >= inv.maxUses
-              const isActive = !isRevoked && !isExpired && !isExhausted
+              const isRevoked = inv.status === 'revoked'
+              const isExpired = inv.status === 'expired'
+              const isExhausted = inv.status === 'exhausted'
+              const isActive = inv.status === 'active'
 
               return (
                 <div key={inv.id} className="p-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 hover:bg-muted/30 transition-colors">
@@ -180,7 +172,7 @@ export function InvitesPage() {
                     </div>
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
                       <span>Uses: <strong>{inv.usedCount}</strong> / {inv.maxUses}</span>
-                      <span>Expires: {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : 'Never'}</span>
+                      <span>Expires: {inv.expiresAtMs !== null ? new Date(inv.expiresAtMs).toLocaleDateString() : 'Never'}</span>
                       {inv.note && <span>Note: <em>{inv.note}</em></span>}
                     </div>
                   </div>
