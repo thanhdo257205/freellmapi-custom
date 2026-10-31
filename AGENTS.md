@@ -85,3 +85,40 @@ When asked to implement a new feature:
 2. Run `/speckit-plan` to design the technical architecture.
 3. Run `/speckit-tasks` to break down into actionable tasks.
 4. Run `/speckit-implement` to execute code changes following the Zero-Conflict rules above.
+
+---
+
+## 5. Branching, Pull Request & Merge Workflow (MANDATORY)
+
+To keep the `main` branch stable, ensure clean CI validation, and preserve full traceability:
+
+### Rule 1: Always Branch Before Modifying
+**Never commit or push directly to `main` for bug fixes or features.** Always create a dedicated branch off `main`:
+```powershell
+git checkout main
+git pull origin main
+git checkout -b <type>/<short-description>
+# Examples: fix/login-session-timeout, feat/user-quota-limits, chore/update-deps
+```
+
+### Rule 2: Verify Tests and Build
+Before committing or creating a PR, verify that the workspace passes all tests and builds:
+```powershell
+npm run test
+npm run build
+```
+
+### Rule 3: Push Branch and Create Pull Request
+Push the branch to `origin` and use the GitHub CLI (`gh`) to open a Pull Request targeting `main`:
+```powershell
+git push -u origin <branch-name>
+gh pr create --base main --head <branch-name> --title "<type>(<scope>): <summary>" --body "<description of changes>"
+```
+
+### Rule 4: Merge PR and Sync Local Main
+Merge the Pull Request into `main` and sync your local repository:
+```powershell
+gh pr merge <pr-number-or-branch> --merge
+git checkout main
+git pull origin main
+```
