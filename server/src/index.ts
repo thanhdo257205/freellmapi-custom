@@ -1,6 +1,7 @@
 import './env.js';
 import { createApp } from './app.js';
 import { initDb, getDb } from './db/index.js';
+import { isTursoDatabase } from './db/turso.js';
 import { startHealthChecker, checkAllKeys } from './services/health.js';
 import { restoreProxySettings, flushProxyCache } from './lib/proxy.js';
 import { startWakeDetect } from './lib/wake-detect.js';
@@ -83,7 +84,9 @@ async function main() {
     console.log(`Server running on http://${display}:${PORT}`);
     console.log(`Proxy endpoint: http://${display}:${PORT}/v1/chat/completions`);
     startHealthChecker(scheduler);
-    startCatalogSync(scheduler);
+    // Remote rows already persist; replaying the cached catalog would block
+    // HTTP readiness on thousands of synchronous network writes.
+    startCatalogSync(scheduler, { reapplyCached: !isTursoDatabase(getDb()) });
     startCooldownProbe(scheduler);
     startModelProbe(scheduler);
     startDbBackupPump(getDb(), scheduler, config.dbPath ?? undefined);

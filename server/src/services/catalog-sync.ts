@@ -1250,13 +1250,13 @@ export function reapplyCachedCatalog(): { reapplied: boolean; version?: string }
 let cancelBootTimer: (() => void) | null = null;
 let cancelInterval: (() => void) | null = null;
 
-export function startCatalogSync(scheduler: Scheduler): void {
+export function startCatalogSync(scheduler: Scheduler, opts: { reapplyCached?: boolean } = {}): void {
   if (cancelInterval) return;
   if (process.env.CATALOG_SYNC_DISABLED === '1') {
     console.log('[catalog-sync] disabled via CATALOG_SYNC_DISABLED=1');
     return;
   }
-  reapplyCachedCatalog();
+  if (opts.reapplyCached !== false) reapplyCachedCatalog();
   const run = () => {
     void refreshLicenseStatus();
     void syncCatalog();
