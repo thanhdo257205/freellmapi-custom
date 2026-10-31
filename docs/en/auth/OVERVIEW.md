@@ -9,6 +9,7 @@ This domain documents the role-based access layer this fork adds on top of upstr
 | [`01-roles-and-invite-registration.md`](01-roles-and-invite-registration.md) | The `users.role` column and how it is assigned, the invite-code lifecycle, `POST /api/auth/register`, and exactly which `/api/*` mounts each role reaches. |
 | [`02-user-api-keys.md`](02-user-api-keys.md) | `sk-flm-…` personal keys: format, storage, mint/revoke endpoints, which surfaces accept them, and what is and is not enforced. |
 | [`03-user-key-storage-design.md`](03-user-key-storage-design.md) | **Proposed, not implemented:** user-owned provider-key storage, envelope encryption, tenant isolation, admin boundaries, migration and release criteria. |
+| [`04-admin-user-management.md`](04-admin-user-management.md) | The `/users` admin page and `/api/admin/users`: listing accounts with key/session counts, promote/demote, revoke sessions, revoke keys — plus the self-role lock, what each action does to a live session, and what the page refuses to do. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Doc revision history for this domain. |
 
 ## Where the fork's wiring lives
@@ -17,12 +18,13 @@ So that `git merge upstream/main` stays conflict-free, every HTTP piece of this 
 
 | File | Contents |
 |------|----------|
-| [`server/src/custom/register.ts`](../../../server/src/custom/register.ts) | `ADMIN_ONLY_PREFIXES`, the `requireAuth + requireAdmin` guard mount, and the `/api/auth` · `/api/invites` · `/api/user` mounts. |
+| [`server/src/custom/register.ts`](../../../server/src/custom/register.ts) | `ADMIN_ONLY_PREFIXES`, the `requireAuth + requireAdmin` guard mount, and the `/api/auth` · `/api/invites` · `/api/admin/users` · `/api/user` mounts. |
 | [`server/src/custom/auth.ts`](../../../server/src/custom/auth.ts) | `POST /api/auth/register` and `GET /api/auth/validate-invite`, kept out of upstream's `routes/auth.ts`. |
-| [`server/src/routes/invites.ts`](../../../server/src/routes/invites.ts), [`server/src/routes/user-keys.ts`](../../../server/src/routes/user-keys.ts) | Fork-only routers. |
+| [`server/src/routes/invites.ts`](../../../server/src/routes/invites.ts), [`server/src/routes/user-keys.ts`](../../../server/src/routes/user-keys.ts), [`server/src/routes/admin-users.ts`](../../../server/src/routes/admin-users.ts) | Fork-only routers. |
+| [`server/src/services/users.ts`](../../../server/src/services/users.ts) | Account enumeration and the admin-side role/session/key mutations, kept out of `services/auth.ts`. |
 | [`server/src/middleware/requireAdmin.ts`](../../../server/src/middleware/requireAdmin.ts) | The gate itself. |
 | [`server/src/__tests__/custom/surface.test.ts`](../../../server/src/__tests__/custom/surface.test.ts) | Tripwire: fails if a merge drops the gate, a mount, or the custom migration registration. |
-| [`client/src/custom/`](../../../client/src/custom/) | Dashboard side, added later: `use-session.ts` (the only reader of `role`), `InvitesPage.tsx`, `MemberKeysView.tsx`. The invite-gated register form is an edit inside upstream's `components/auth-gate.tsx` and `App.tsx`. |
+| [`client/src/custom/`](../../../client/src/custom/) | Dashboard side, added later: `use-session.ts` (the only reader of `role`), `InvitesPage.tsx`, `MemberKeysView.tsx`, `UsersPage.tsx`. The invite-gated register form is an edit inside upstream's `components/auth-gate.tsx` and `App.tsx`. |
 
 Upstream's [`server/src/app.ts`](../../../server/src/app.ts) carries five added lines and no modified ones — the `registerCustomRoutes` import, its call, and the two comment lines plus the blank that document it (`git diff upstream/main -- server/src/app.ts` → `5 0`). Its [`server/src/routes/auth.ts`](../../../server/src/routes/auth.ts) is byte-identical to `upstream/main`. The remaining upstream-file edits in this domain are additive and in low-churn files (`services/auth.ts`, `lib/system-prompt.ts`, `db/migrate/defaults.ts`). See [01 — Exact mount table](01-roles-and-invite-registration.md#exact-mount-table).
 
