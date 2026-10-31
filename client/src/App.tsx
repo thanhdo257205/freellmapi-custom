@@ -47,6 +47,8 @@ import LogsPage from '@/pages/LogsPage'
 import PremiumPage from '@/pages/PremiumPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import AgentsPage from '@/pages/AgentsPage'
+import InvitesPage from '@/custom/InvitesPage'
+import { useUserSession } from '@/custom/use-session'
 
 // Every failed mutation surfaces as an error toast, so no action fails
 // silently. A page that already shows the failure inline can opt out with
@@ -242,6 +244,7 @@ function Navbar() {
   const { t } = useI18n()
   const location = useLocation()
   const navigate = useNavigate()
+  const { isMember, isAdmin } = useUserSession()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [updatesOpen, setUpdatesOpen] = useState(false)
   // The update pill lives outside the navbar; it asks for this dialog by event.
@@ -253,6 +256,16 @@ function Navbar() {
   const [credentialsMode, setCredentialsMode] = useState<'password' | 'email' | null>(null)
   const { data: premium, licensed, isLoading: premiumLoading, isError: premiumError } = usePremium()
   const showUpgrade = Boolean(premium) && !licensed && !premiumLoading && !premiumError
+
+  const visibleNavItems: Array<{ to: string; labelKey: string; customLabel?: string }> = isMember
+    ? navItems.filter((i) => i.to !== '/analytics' && i.to !== '/premium')
+    : isAdmin
+      ? [
+          ...navItems.filter((i) => i.to !== '/premium'),
+          { to: '/invites', labelKey: 'nav.invites', customLabel: 'Invites' },
+          ...navItems.filter((i) => i.to === '/premium'),
+        ]
+      : navItems
 
   return (
     <>
@@ -274,13 +287,13 @@ function Navbar() {
             className="ms-10 hidden items-center gap-6 md:flex"
             style={isDesktopApp ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}
           >
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const menu = navMenus[item.to]
               return menu ? (
                 // Split control: the label navigates, the chevron reveals the
                 // pages hiding behind it.
                 <div key={item.to} className="flex items-center gap-0.5">
-                  <NavItem to={item.to}>{t(item.labelKey)}</NavItem>
+                  <NavItem to={item.to}>{item.customLabel || t(item.labelKey)}</NavItem>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       aria-label={t(menu.ariaKey)}
@@ -299,7 +312,7 @@ function Navbar() {
                 </div>
               ) : (
                 <NavItem key={item.to} to={item.to}>
-                  {t(item.labelKey)}
+                  {item.customLabel || t(item.labelKey)}
                 </NavItem>
               )
             })}
@@ -352,14 +365,14 @@ function Navbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuGroup>
-                  {navItems.map((item) => {
+                  {visibleNavItems.map((item) => {
                     const menu = navMenus[item.to]
                     return menu ? (
                       <DropdownMenuSub key={item.to}>
                         <DropdownMenuSubTrigger
                           className={menu.isActive(location.pathname) ? 'bg-accent text-accent-foreground font-medium' : undefined}
                         >
-                          {t(item.labelKey)}
+                          {item.customLabel || t(item.labelKey)}
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent>
                           {menu.items.map((entry) => (
@@ -375,7 +388,7 @@ function Navbar() {
                         onClick={() => navigate(item.to)}
                         className={location.pathname === item.to ? 'bg-accent text-accent-foreground font-medium' : undefined}
                       >
-                        {t(item.labelKey)}
+                        {item.customLabel || t(item.labelKey)}
                       </DropdownMenuItem>
                     )
                   })}
@@ -495,6 +508,7 @@ function App() {
                       <Route path="/models/decision" element={<DecisionPage />} />
                       <Route path="/playground" element={<PlaygroundPage />} />
                       <Route path="/keys" element={<KeysPage />} />
+                      <Route path="/invites" element={<InvitesPage />} />
                       <Route path="/agents" element={<AgentsPage />} />
                       <Route path="/fallback" element={<Navigate to="/models/chat" replace />} />
                       <Route path="/analytics" element={<AnalyticsPage />} />
