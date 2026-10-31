@@ -8,9 +8,12 @@ import { hashPassword, verifyPassword } from '../lib/password.js';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+export type UserRole = 'admin' | 'member';
+
 export interface SessionUser {
   userId: number;
   email: string;
+  role: UserRole;
 }
 
 function sha256(s: string): string {
@@ -31,7 +34,7 @@ export function userCount(): number {
 }
 
 /** Create a user. Throws { code: 'email_taken' } if the email already exists. */
-export function createUser(email: string, password: string): SessionUser {
+export function createUser(email: string, password: string, role?: UserRole): SessionUser {
   const db = getDb();
   const normalized = normalizeEmail(email);
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(normalized);
@@ -40,19 +43,22 @@ export function createUser(email: string, password: string): SessionUser {
     err.code = 'email_taken';
     throw err;
   }
-  const result = db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)')
-    .run(normalized, hashPassword(password));
-  return { userId: Number(result.lastInsertRowid), email: normalized };
+  // The first user ever created is automatically an admin
+  const assignedRole: UserRole = role ?? (userCount() === 0 ? 'admin' : 'member');
+  const result = db.prepare('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)')
+    .run(normalized, hashPassword(password), assignedRole);
+  return { userId: Number(result.lastInsertRowid), email: normalized, role: assignedRole };
 }
 
 /** Verify credentials. Returns the user on success, null on failure. */
 export function verifyCredentials(email: string, password: string): SessionUser | null {
   const db = getDb();
-  const row = db.prepare('SELECT id, email, password_hash FROM users WHERE email = ?')
-    .get(normalizeEmail(email)) as { id: number; email: string; password_hash: string } | undefined;
+  const row = db.prepare('SELECT id, email, password_hash, role FROM users WHERE email = ?')
+    .get(normalizeEmail(email)) as { id: number; email: string; password_hash: string; role?: string } | undefined;
   if (!row) return null;
   if (!verifyPassword(password, row.password_hash)) return null;
-  return { userId: row.id, email: row.email };
+  const role: UserRole = row.role === 'admin' ? 'admin' : 'member';
+  return { userId: row.id, email: row.email, role };
 }
 
 /** Desktop app only: a session for the install's account, creating the hidden
@@ -80,16 +86,17 @@ export function validateSession(token: string | undefined | null): SessionUser |
   if (!token) return null;
   const db = getDb();
   const row = db.prepare(`
-    SELECT s.user_id, s.expires_at_ms, u.email
+    SELECT s.user_id, s.expires_at_ms, u.email, u.role
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ?
-  `).get(sha256(token)) as { user_id: number; expires_at_ms: number; email: string } | undefined;
+  `).get(sha256(token)) as { user_id: number; expires_at_ms: number; email: string; role?: string } | undefined;
   if (!row) return null;
   if (row.expires_at_ms < Date.now()) {
     db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
     return null;
   }
-  return { userId: row.user_id, email: row.email };
+  const role: UserRole = row.role === 'admin' ? 'admin' : 'member';
+  return { userId: row.user_id, email: row.email, role };
 }
 
 export function deleteSession(token: string | undefined | null): void {
@@ -142,9 +149,10 @@ export function accountEmail(): string | null {
  */
 export function resetUserPassword(newPassword: string): SessionUser | null {
   const db = getDb();
-  const row = db.prepare('SELECT id, email FROM users LIMIT 1').get() as { id: number; email: string } | undefined;
+  const row = db.prepare('SELECT id, email, role FROM users LIMIT 1').get() as { id: number; email: string; role?: string } | undefined;
   if (!row) return null;
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), row.id);
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
-  return { userId: row.id, email: row.email };
+  const role: UserRole = row.role === 'admin' ? 'admin' : 'member';
+  return { userId: row.id, email: row.email, role };
 }

@@ -15,6 +15,8 @@ import {
   normalizeEmail,
   desktopSessionToken,
 } from '../services/auth.js';
+import { validateInviteCode, claimInviteCode } from '../services/invites.js';
+import { mintUserApiKey } from '../services/user-keys.js';
 import { setupCodeMatches, clearSetupCode } from '../lib/setup-code.js';
 import { generateResetCode, resetCodeMatches, clearResetCode } from '../lib/reset-code.js';
 
@@ -30,6 +32,12 @@ const failedPasswordAttempts = new Map<number, number>();
 const signupSchema = z.object({
   email: z.string().email('A valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const registerSchema = z.object({
+  email: z.string().email('A valid email is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  inviteCode: z.string().min(1, 'Invite code is required'),
 });
 
 // Logging in is a lookup, not a registration, so the address is matched rather
@@ -193,7 +201,60 @@ authRouter.get('/status', (req: Request, res: Response) => {
     needsSetup: userCount() === 0,
     authenticated: !!session,
     email: session?.email ?? null,
+    role: session?.role ?? null,
     desktop: desktopSignInAllowed(req),
+  });
+});
+
+authRouter.get('/validate-invite', (req: Request, res: Response) => {
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+  const result = validateInviteCode(code);
+  res.json(result);
+});
+
+authRouter.post('/register', (req: Request, res: Response) => {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: parsed.error.errors.map(e => e.message).join(', ') } });
+    return;
+  }
+  const { email, password, inviteCode } = parsed.data;
+
+  // Validate invite code
+  const validation = validateInviteCode(inviteCode);
+  if (!validation.valid) {
+    let msg = 'Invalid invite code.';
+    if (validation.reason === 'expired') msg = 'This invite code has expired.';
+    if (validation.reason === 'exhausted') msg = 'This invite code has reached its maximum uses.';
+    if (validation.reason === 'revoked') msg = 'This invite code has been revoked.';
+    res.status(400).json({ error: { message: msg, type: 'invalid_invite_code' } });
+    return;
+  }
+
+  // Attempt creation
+  let user;
+  try {
+    user = createUser(email, password, 'member');
+  } catch (err: any) {
+    if (err.code === 'email_taken') {
+      res.status(409).json({ error: { message: 'An account with that email already exists.', type: 'email_taken' } });
+      return;
+    }
+    throw err;
+  }
+
+  // Claim invite code
+  claimInviteCode(inviteCode);
+
+  // Mint initial user API key for Cursor / Cline
+  const initialKey = mintUserApiKey(user.userId, 'Default Key');
+
+  const token = createSession(user.userId);
+  res.status(201).json({
+    token,
+    email: user.email,
+    role: user.role,
+    apiKey: initialKey.key,
   });
 });
 
@@ -234,10 +295,10 @@ authRouter.post('/setup', (req: Request, res: Response) => {
     res.status(400).json({ error: { message: parsed.error.errors.map(e => e.message).join(', ') } });
     return;
   }
-  const user = createUser(parsed.data.email, parsed.data.password);
+  const user = createUser(parsed.data.email, parsed.data.password, 'admin');
   clearSetupCode(); // one-time: the dashboard is now claimed
   const token = createSession(user.userId);
-  res.status(201).json({ token, email: user.email });
+  res.status(201).json({ token, email: user.email, role: user.role });
 });
 
 authRouter.post('/login', (req: Request, res: Response) => {
@@ -267,7 +328,7 @@ authRouter.post('/login', (req: Request, res: Response) => {
 
   clearFailures(email);
   const token = createSession(user.userId);
-  res.json({ token, email: user.email });
+  res.json({ token, email: user.email, role: user.role });
 });
 
 authRouter.post('/logout', (req: Request, res: Response) => {
@@ -281,7 +342,7 @@ authRouter.get('/me', (req: Request, res: Response) => {
     res.status(401).json({ error: { message: 'Authentication required', type: 'authentication_error' } });
     return;
   }
-  res.json({ email: session.email });
+  res.json({ email: session.email, role: session.role });
 });
 
 // Change email (requires active session + current password)
