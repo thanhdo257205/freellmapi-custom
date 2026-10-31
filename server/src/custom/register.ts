@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { adminUsersRouter } from '../routes/admin-users.js';
 import { invitesRouter } from '../routes/invites.js';
 import { userKeysRouter } from '../routes/user-keys.js';
 import { customAuthRouter } from './auth.js';
@@ -25,6 +26,7 @@ export const ADMIN_ONLY_PREFIXES: string[] = [
   '/api/backups',
   '/api/update',
   '/api/invites',
+  '/api/admin/users',
 ];
 
 export function registerCustomRoutes(app: Express): void {
@@ -38,5 +40,6 @@ export function registerCustomRoutes(app: Express): void {
   // shadow invite registration.
   app.use('/api/auth', customAuthRouter);
   app.use('/api/invites', requireAuth, invitesRouter);
+  app.use('/api/admin/users', requireAuth, adminUsersRouter);
   app.use('/api/user', requireAuth, userKeysRouter);
 }
