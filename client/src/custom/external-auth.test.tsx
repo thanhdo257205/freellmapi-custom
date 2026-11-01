@@ -14,6 +14,8 @@ let calls: { path: string; body: Record<string, string> }[]
 let methodsFailureStatus = 0
 let callbackResult: Record<string, string>
 let loginFailure: { status: number; type: string; message: string } | null = null
+const VALID_GOOGLE_START = 'https://accounts.google.com/o/oauth2/v2/auth'
+let googleAuthStartUrl = VALID_GOOGLE_START
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' },
@@ -88,6 +90,7 @@ beforeEach(() => {
   calls = []
   methodsFailureStatus = 0
   loginFailure = null
+  googleAuthStartUrl = VALID_GOOGLE_START
   callbackResult = {
     token: 'google-session',
     role: 'member',
@@ -115,6 +118,8 @@ beforeEach(() => {
         })
       if (path.endsWith('/api/auth/google/complete'))
         return json(callbackResult)
+      if (path.endsWith('/api/auth/google/start'))
+        return json({ url: googleAuthStartUrl })
       if (
         loginFailure &&
         (path.endsWith('/api/auth/login') ||
@@ -341,4 +346,27 @@ it('names the password toggle in English for an en reader', async () => {
   )!
   act(() => toggle.click())
   expect(toggle.getAttribute('aria-label')).toBe('Hide password')
+})
+
+// The destination guard is a security check, but the reader still has to learn
+// why the button did nothing in the language they are reading the card in.
+it('explains a blocked Google sign-in destination in English', async () => {
+  googleAuthStartUrl = 'https://evil.example.com/oauth'
+  await mount('/', 'en')
+  await click('Continue with Google')
+  await until(() => !!container.querySelector('[role=alert]'))
+  expect(container.querySelector('[role=alert]')!.textContent).toBe(
+    'Google sign-in was blocked because the login link did not come from Google.',
+  )
+})
+
+it('explains a blocked Google sign-in destination in Vietnamese', async () => {
+  googleAuthStartUrl = 'https://evil.example.com/oauth'
+  await mount('/', 'vi')
+  await until(() => !!container.querySelector('[aria-label="Hiện mật khẩu"]'))
+  await click('Tiếp tục với Google')
+  await until(() => !!container.querySelector('[role=alert]'))
+  expect(container.querySelector('[role=alert]')!.textContent).toBe(
+    'Đăng nhập Google đã bị chặn vì đường dẫn đăng nhập không đến từ Google.',
+  )
 })
