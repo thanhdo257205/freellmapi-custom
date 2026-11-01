@@ -115,7 +115,7 @@ export async function verifyGoogleIdToken(
     audience: config.clientId,
     algorithms: ['RS256'],
     requiredClaims: ['exp', 'iat', 'sub', 'email', 'email_verified', 'nonce'],
-    clockTolerance: 120,
+    clockTolerance: 5,
     maxTokenAge: '10m',
   });
   if (
