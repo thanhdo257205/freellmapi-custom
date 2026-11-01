@@ -21,6 +21,7 @@ export const ADMIN_ONLY_PREFIXES: string[] = [
   '/api/keys',
   '/api/client-profiles',
   '/api/logs',
+  '/api/analytics',
   '/api/settings',
   '/api/backups',
   '/api/update',
@@ -36,7 +37,7 @@ export function registerCustomRoutes(app: Express): void {
   // Granular route-level permission gates for upstream-mounted endpoints
   app.use('/api/keys', requireAuth, requirePermission('manage_keys'));
   app.use(['/api/client-profiles', '/api/settings', '/api/update'], requireAuth, requirePermission('manage_settings'));
-  app.use('/api/logs', requireAuth, requirePermission('view_logs'));
+  app.use(['/api/logs', '/api/analytics'], requireAuth, requirePermission('view_logs'));
   app.use('/api/backups', requireAuth, requirePermission('manage_backups'));
 
   // Custom fork routes with their dedicated permission gates
