@@ -1,4 +1,7 @@
 import { getDb } from '../db/index.js';
+import { setImmediate as yieldToIo } from 'node:timers/promises';
+import { isTursoDatabase } from '../db/turso.js';
+import type { Db } from '../db/types.js';
 import { resolveProvider } from '../providers/index.js';
 import { BaseProvider } from '../providers/base.js';
 import { decrypt } from '../lib/crypto.js';
@@ -62,8 +65,8 @@ export const HEALTH_PASS_TIME_BUDGET_MS = CHECK_INTERVAL_MS / 2;
 
 /** Parallel key probes per health pass. Tunable because the right number depends
  *  on how many keys share one provider; 0 or a bad value falls back to the default. */
-function getHealthCheckConcurrency(): number {
-  return positiveIntEnv(process.env.HEALTH_CHECK_CONCURRENCY, DEFAULT_HEALTH_CHECK_CONCURRENCY);
+function getHealthCheckConcurrency(db: Db): number {
+  return positiveIntEnv(process.env.HEALTH_CHECK_CONCURRENCY, isTursoDatabase(db) ? 2 : DEFAULT_HEALTH_CHECK_CONCURRENCY);
 }
 
 /** Minimum gap between two probes aimed at the SAME provider (per platform +
@@ -642,7 +645,7 @@ async function runHealthPass(opts: HealthPassOptions): Promise<HealthPassResult>
   // so a serial pass over a large key fleet can outlast the 5-minute interval
   // it is scheduled on and leave the dashboard showing stale statuses. The cap
   // keeps us from opening one socket per key against the same provider.
-  const concurrency = opts.concurrency ?? getHealthCheckConcurrency();
+  const concurrency = opts.concurrency ?? getHealthCheckConcurrency(db);
   const nextAllowedAt = new Map<string, number>();
   const checkedKeyIds: number[] = [];
   let cursor = 0;
@@ -661,6 +664,10 @@ async function runHealthPass(opts: HealthPassOptions): Promise<HealthPassResult>
       }
       checkedKeyIds.push(key.id);
       try {
+        // Resolved promises only yield to microtasks. With synchronous remote
+        // SQL a fleet of probes can otherwise starve HTTP health checks; let
+        // pending sockets run between keys, with a smaller remote worker pool.
+        if (isTursoDatabase(db)) await yieldToIo();
         await check(key.id);
       } catch (err) {
         // checkKeyHealth handles its own errors; this is a backstop so one
