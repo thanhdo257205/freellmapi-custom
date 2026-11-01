@@ -66,6 +66,15 @@ export function setUserRole(userId: number, role: UserRole, actorUserId: number)
   }
 
   const db = getDb();
+
+  // Actor check: Only full administrators can change user roles
+  const actor = db.prepare('SELECT id, role, is_primary FROM users WHERE id = ?').get(actorUserId) as { id: number; role: string; is_primary: number } | undefined;
+  if (!actor || (actor.role !== 'admin' && !actor.is_primary)) {
+    const err = new Error('Only administrators can change account roles') as any;
+    err.code = 'insufficient_privileges';
+    throw err;
+  }
+
   const target = db.prepare('SELECT id, is_primary FROM users WHERE id = ?').get(userId) as { id: number; is_primary: number } | undefined;
   if (!target) {
     const err = new Error('No such account') as any;
@@ -92,7 +101,8 @@ export function setUserRole(userId: number, role: UserRole, actorUserId: number)
  */
 export function setUserPermissions(userId: number, permissions: Permission[], actorUserId: number): void {
   const db = getDb();
-  const target = db.prepare('SELECT id, is_primary FROM users WHERE id = ?').get(userId) as { id: number; is_primary: number } | undefined;
+
+  const target = db.prepare('SELECT id, role, is_primary FROM users WHERE id = ?').get(userId) as { id: number; role: string; is_primary: number } | undefined;
   if (!target) {
     const err = new Error('No such account') as any;
     err.code = 'user_not_found';
@@ -103,6 +113,21 @@ export function setUserPermissions(userId: number, permissions: Permission[], ac
     const err = new Error('The primary admin account is protected and cannot be modified') as any;
     err.code = 'primary_admin_protected';
     throw err;
+  }
+
+  const actor = db.prepare('SELECT id, role, is_primary FROM users WHERE id = ?').get(actorUserId) as { id: number; role: string; is_primary: number } | undefined;
+  if (!actor || (actor.role !== 'admin' && !actor.is_primary)) {
+    // Non-admin actors (e.g. member with manage_users) cannot alter admin permissions or grant wildcard
+    if (target.role === 'admin') {
+      const err = new Error('Only administrators can modify administrator permissions') as any;
+      err.code = 'insufficient_privileges';
+      throw err;
+    }
+    if (permissions.includes('*')) {
+      const err = new Error('Non-administrators cannot grant full administrative access') as any;
+      err.code = 'insufficient_privileges';
+      throw err;
+    }
   }
 
   db.prepare('UPDATE users SET permissions = ? WHERE id = ?').run(JSON.stringify(permissions), userId);

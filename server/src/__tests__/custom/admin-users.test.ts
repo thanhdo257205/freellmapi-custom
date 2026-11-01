@@ -203,4 +203,49 @@ describe('Admin user management', () => {
     expect((await hit('/api/invites', 'GET', undefined, devToken)).status).toBe(403);
     expect((await hit('/api/admin/users', 'GET', undefined, devToken)).status).toBe(403);
   });
+
+  it('prevents privilege escalation when a member has manage_users', async () => {
+    const userManager = createUser('usermanager@example.com', 'ManagerPass123!', 'member');
+    const victim = createUser('victim@example.com', 'VictimPass123!', 'member');
+    const targetAdmin = createUser('coadmin@example.com', 'CoAdminPass123!', 'admin');
+
+    // Grant userManager manage_users permission
+    await hit(`/api/admin/users/${userManager.userId}/permissions`, 'PUT', { permissions: ['manage_users'] }, adminToken);
+    const managerToken = createSession(userManager.userId);
+
+    // 1. Manager attempts to promote victim to admin -> MUST FAIL (insufficient_privileges)
+    const promoteRes = await hit(`/api/admin/users/${victim.userId}/role`, 'PATCH', { role: 'admin' }, managerToken);
+    expect(promoteRes.status).toBe(403);
+    expect(promoteRes.body?.error?.type).toBe('insufficient_privileges');
+
+    // 2. Manager attempts to grant wildcard '*' to victim -> MUST FAIL (insufficient_privileges)
+    const wildcardRes = await hit(`/api/admin/users/${victim.userId}/permissions`, 'PUT', { permissions: ['*'] }, managerToken);
+    expect(wildcardRes.status).toBe(403);
+    expect(wildcardRes.body?.error?.type).toBe('insufficient_privileges');
+
+    // 3. Manager attempts to alter permissions of another admin -> MUST FAIL (insufficient_privileges)
+    const alterAdminRes = await hit(`/api/admin/users/${targetAdmin.userId}/permissions`, 'PUT', { permissions: ['manage_keys'] }, managerToken);
+    expect(alterAdminRes.status).toBe(403);
+    expect(alterAdminRes.body?.error?.type).toBe('insufficient_privileges');
+
+    // 4. Manager can legitimately manage member granular permissions
+    const okRes = await hit(`/api/admin/users/${victim.userId}/permissions`, 'PUT', { permissions: ['manage_invites'] }, managerToken);
+    expect(okRes.status).toBe(200);
+  });
+
+  it('enforces view_logs permission on /api/analytics', async () => {
+    const regularMember = createUser('regular@example.com', 'RegularPass123!', 'member');
+    const memberToken = createSession(regularMember.userId);
+
+    // Regular member cannot view analytics
+    const noAccess = await hit('/api/analytics/summary?range=24h', 'GET', undefined, memberToken);
+    expect(noAccess.status).toBe(403);
+
+    // Grant view_logs
+    await hit(`/api/admin/users/${regularMember.userId}/permissions`, 'PUT', { permissions: ['view_logs'] }, adminToken);
+
+    // Now member can view analytics
+    const withAccess = await hit('/api/analytics/summary?range=24h', 'GET', undefined, memberToken);
+    expect(withAccess.status).toBe(200);
+  });
 });
