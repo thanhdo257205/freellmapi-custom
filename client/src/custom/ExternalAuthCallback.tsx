@@ -3,6 +3,7 @@ import type { ExternalAuthResult } from '../../../shared/external-auth'
 import { apiFetch, setToken } from '@/lib/api'
 import { getSessionRevision } from './session-state'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/i18n'
 import { RegistrationKeyNotice } from './RegistrationKeyNotice'
 
 export function ExternalAuthCallback({
@@ -10,6 +11,7 @@ export function ExternalAuthCallback({
 }: {
   onComplete: () => void
 }) {
+  const { t } = useI18n()
   const [initialRevision] = useState(getSessionRevision)
   const request = useRef<Promise<ExternalAuthResult> | null>(null)
   const [result, setResult] = useState<ExternalAuthResult | null>(null)
@@ -54,8 +56,8 @@ export function ExternalAuthCallback({
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
-        <Button onClick={onComplete}>Back to sign in</Button>
+        <Button onClick={onComplete}>{t('auth.backToLogin')}</Button>
       </div>
     )
-  return <p role="status">Completing Google sign-in…</p>
+  return <p role="status">{t('auth.completingGoogle')}</p>
 }
