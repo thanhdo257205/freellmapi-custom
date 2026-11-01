@@ -111,7 +111,8 @@
     "googleTokenError": "Google connection error ({detail}). Please re-check the Google Client Secret configured on Render.",
     "googleInviteRequiredError": "This Google account is not in the user list and has no valid invite code. Sign in with a password, or send an access request.",
     "googleLinkConflictError": "This email is already linked to a different Google account.",
-    "googleFailedDetail": "Google sign-in failed: {detail}"
+    "googleFailedDetail": "Google sign-in failed: {detail}",
+    "googleDestBlockedError": "Google sign-in was blocked because the login link did not come from Google."
   },
   "common": {
     "save": "Uložit",
