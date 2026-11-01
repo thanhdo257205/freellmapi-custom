@@ -48,6 +48,7 @@ import PremiumPage from '@/pages/PremiumPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import AgentsPage from '@/pages/AgentsPage'
 import InvitesPage from '@/custom/InvitesPage'
+import UsersPage from '@/custom/UsersPage'
 import { useUserSession } from '@/custom/use-session'
 
 // Every failed mutation surfaces as an error toast, so no action fails
@@ -263,6 +264,7 @@ function Navbar() {
       ? [
           ...navItems.filter((i) => i.to !== '/premium'),
           { to: '/invites', labelKey: 'nav.invites', customLabel: 'Invites' },
+          { to: '/users', labelKey: 'nav.users', customLabel: 'Users' },
           ...navItems.filter((i) => i.to === '/premium'),
         ]
       : navItems
@@ -509,6 +511,7 @@ function App() {
                       <Route path="/playground" element={<PlaygroundPage />} />
                       <Route path="/keys" element={<KeysPage />} />
                       <Route path="/invites" element={<InvitesPage />} />
+                      <Route path="/users" element={<UsersPage />} />
                       <Route path="/agents" element={<AgentsPage />} />
                       <Route path="/fallback" element={<Navigate to="/models/chat" replace />} />
                       <Route path="/analytics" element={<AnalyticsPage />} />
