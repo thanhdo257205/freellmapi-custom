@@ -287,3 +287,22 @@ it('localizes a duplicate access request and keeps it non-destructive', async ()
   )
   expect(alert.className).toContain('amber')
 })
+
+// The callback diagnostics are per-reader text like any other label.
+it('reports a failed Google sign-in in the reader language', async () => {
+  await mount('/?auth_error=missing_attempt_cookie')
+  expect(container.textContent).toContain('Sign-in session error')
+  expect(container.textContent).not.toContain('Lỗi phiên đăng nhập')
+})
+
+it('reports a failed Google sign-in in Vietnamese for a vi reader', async () => {
+  await mount('/?auth_error=missing_attempt_cookie', 'vi')
+  expect(container.textContent).toContain('Lỗi phiên đăng nhập')
+})
+
+it('keeps the token-exchange detail while translating its wrapper', async () => {
+  await mount('/?auth_error=Google%20token%20exchange%20failed%3A%20invalid_grant')
+  expect(container.textContent).toContain(
+    'Google connection error (Google token exchange failed: invalid_grant)',
+  )
+})

@@ -106,7 +106,12 @@
     "registerButton": "Register",
     "googleInviteRequired": "An invite code is required for a new Google account.",
     "pendingApprovalNotice": "Your account is waiting for admin approval. Please check back later.",
-    "requestAlreadyPending": "A registration request for this email is already waiting for approval."
+    "requestAlreadyPending": "A registration request for this email is already waiting for approval.",
+    "googleCookieError": "Sign-in session error: your browser did not send the authentication cookie. Try again, or allow third-party cookies.",
+    "googleTokenError": "Google connection error ({detail}). Please re-check the Google Client Secret configured on Render.",
+    "googleInviteRequiredError": "This Google account is not in the user list and has no valid invite code. Sign in with a password, or send an access request.",
+    "googleLinkConflictError": "This email is already linked to a different Google account.",
+    "googleFailedDetail": "Google sign-in failed: {detail}"
   },
   "common": {
     "save": "സംരക്ഷിക്കുക",

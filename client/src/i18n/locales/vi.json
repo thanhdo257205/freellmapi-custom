@@ -106,7 +106,12 @@
     "registerButton": "Đăng ký",
     "googleInviteRequired": "Tài khoản Google mới cần một mã mời.",
     "pendingApprovalNotice": "Tài khoản của bạn đang chờ Admin phê duyệt. Vui lòng quay lại sau!",
-    "requestAlreadyPending": "Yêu cầu đăng ký cho email này đang chờ Admin phê duyệt."
+    "requestAlreadyPending": "Yêu cầu đăng ký cho email này đang chờ Admin phê duyệt.",
+    "googleCookieError": "Lỗi phiên đăng nhập: Trình duyệt không gửi được cookie xác thực. Vui lòng thử lại hoặc tắt chặn cookie bên thứ ba.",
+    "googleTokenError": "Lỗi kết nối Google ({detail}). Vui lòng kiểm tra lại cấu hình Google Client Secret trên Render.",
+    "googleInviteRequiredError": "Tài khoản Google này chưa có trong danh sách người dùng và không có mã mời hợp lệ. Vui lòng đăng nhập bằng Mật khẩu hoặc gửi yêu cầu xét duyệt.",
+    "googleLinkConflictError": "Tài khoản email này đã được liên kết với một tài khoản Google khác.",
+    "googleFailedDetail": "Đăng nhập Google thất bại: {detail}"
   },
   "common": {
     "save": "Lưu",

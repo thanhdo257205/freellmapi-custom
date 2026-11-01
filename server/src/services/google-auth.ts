@@ -77,15 +77,30 @@ export function takeGoogleAttempt(
   cookie: string,
   state: string,
 ): GoogleAttempt {
-  const attempt = attemptSchema.parse(unseal(cookie));
-  if (!safeEqual(attempt.state, state) || attempt.expiresAt <= Date.now())
+  if (!cookie) {
+    console.error('[google-auth] takeGoogleAttempt: attempt cookie missing in request headers');
+    throw new Error('missing_attempt_cookie');
+  }
+  let attempt: GoogleAttempt;
+  try {
+    attempt = attemptSchema.parse(unseal(cookie));
+  } catch (err) {
+    console.error('[google-auth] takeGoogleAttempt: failed to unseal cookie:', err);
+    throw new Error('invalid_attempt_cookie');
+  }
+  if (!safeEqual(attempt.state, state) || attempt.expiresAt <= Date.now()) {
+    console.error('[google-auth] takeGoogleAttempt: state mismatch or attempt expired');
     throw new Error('Invalid Google callback');
+  }
   const result = getDb()
     .prepare(
       'DELETE FROM auth_google_attempts WHERE state_hash = ? AND expires_at_ms > ?',
     )
     .run(digest(state), Date.now());
-  if (result.changes !== 1) throw new Error('Invalid Google callback');
+  if (result.changes !== 1) {
+    console.error('[google-auth] takeGoogleAttempt: state hash not found in db or already consumed');
+    throw new Error('Invalid Google callback');
+  }
   return attempt;
 }
 
@@ -100,7 +115,7 @@ export async function verifyGoogleIdToken(
     audience: config.clientId,
     algorithms: ['RS256'],
     requiredClaims: ['exp', 'iat', 'sub', 'email', 'email_verified', 'nonce'],
-    clockTolerance: 5,
+    clockTolerance: 120,
     maxTokenAge: '10m',
   });
   if (
@@ -140,9 +155,16 @@ export async function exchangeGoogleCode(
       code_verifier: attempt.verifier,
     }),
   });
-  if (!response.ok) throw new Error('Google sign-in failed');
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => '');
+    console.error('[google-auth] Google token exchange HTTP', response.status, errorBody);
+    throw new Error(`Google token exchange failed (${response.status}): ${errorBody}`);
+  }
   const data = (await response.json()) as { id_token?: string };
-  if (!data.id_token) throw new Error('Google sign-in failed');
+  if (!data.id_token) {
+    console.error('[google-auth] Google token response missing id_token');
+    throw new Error('Google sign-in failed');
+  }
   return verifyGoogleIdToken(data.id_token, attempt.nonce, config);
 }
 
