@@ -1,0 +1,6 @@
+# Research decisions
+- Decision: code flow with PKCE S256, state, nonce, server signature verification and browser-bound handoff. Rationale: no dashboard token in URLs and no Google scripts/CSP changes. Alternative implicit flow rejected.
+- Decision: auto-link only Google-authoritative verified Gmail/Workspace emails; store provider/sub. Other verified emails can be stale and cannot claim an existing local account. Source: https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+- Decision: Gmail HTTPS REST with operator-only gmail.send refresh token. Members request openid email only. SMTP rejected because Render Free blocks 25/465/587. Sources: https://render.com/docs/free and https://developers.google.com/workspace/gmail/api/guides/sending
+- Decision: separate sender client, ideally separate project, because Gmail sensitive scope affects consent and Testing refresh tokens expire after seven days. Publishing and verification are distinct. Sources: https://developers.google.com/identity/protocols/oauth2 and https://developers.google.com/workspace/gmail/api/auth/scopes
+- Decision: jose 6 for validated JWTs and Google JWKS, with local signed-token regression fixtures. Source: https://github.com/panva/jose

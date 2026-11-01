@@ -22,7 +22,7 @@ Unlike provider keys, user keys are **hashed, not AES-256-GCM encrypted**: they 
 
 ## Endpoints
 
-All of these are dashboard-session routes (`Authorization: Bearer <session token>` from `/api/auth/login`), scoped to the caller — a key is never valid on `/api/*` ([`requireAuth`](../../../server/src/middleware/requireAuth.ts) only accepts session tokens). Mounted at `/api/user` with `requireAuth` but **not** `requireAdmin` ([server/src/custom/register.ts:44](../../../server/src/custom/register.ts#L44)), so members manage their own keys.
+All of these are dashboard-session routes (`Authorization: Bearer <session token>` from `/api/auth/login`), scoped to the caller — a key is never valid on `/api/*` ([`requireAuth`](../../../server/src/middleware/requireAuth.ts) only accepts session tokens). Mounted at `/api/user` with `requireAuth` but **not** `requireAdmin` ([server/src/custom/register.ts:45](../../../server/src/custom/register.ts#L45)), so members manage their own keys.
 
 | Method | Path | Effect |
 |---|---|---|
