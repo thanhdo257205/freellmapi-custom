@@ -48,3 +48,6 @@ jobs:
 
       - name: Build workspaces
         run: npm run build
+
+      - name: Load compiled server with plain Node
+        run: node --input-type=module -e "await import('./server/dist/app.js')"

@@ -58,6 +58,10 @@ COPY --from=build --chown=node:node /app/desktop/package.json ./desktop/package.
 COPY --from=build --chown=node:node /app/server/dist ./server/dist
 COPY --from=build --chown=node:node /app/client/dist ./client/dist
 
+# Load the compiled HTTP surface with plain Node, after pruning and copying
+# runtime dependencies. Build/type checks alone miss unresolved workspace JS.
+RUN node --input-type=module -e "await import('./server/dist/app.js')"
+
 RUN mkdir -p /app/server/data && chown -R node:node /app/server/data
 
 # PaaS runtimes (Railway, Render) mount the persistent volume root-owned while
