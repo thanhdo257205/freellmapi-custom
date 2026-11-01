@@ -1,5 +1,5 @@
 # Implementation Plan: Google sign-in and Gmail recovery
-**Branch**: `codex/feat-google-login-email-reset` | **Date**: 2026-11-01 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/feat-google-auth-recovery` | **Date**: 2026-11-01 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 Add standalone server services/router and React components. Use Google authorization code + PKCE and jose JWT verification. Use the Gmail REST API with a separate operator-authorized refresh token; Render Free blocks SMTP. Preserve upstream password auth and isolate hosted recovery.

@@ -76,10 +76,10 @@ externalAuthRouter.post('/email/forgot-password', (req, res) => {
   const permitted = allowAuthRequest('recovery-email:' + parsed.data.email.toLowerCase(), 3);
   // Same acknowledgement/timing for all accounts: SMTP/API delivery is never awaited here.
   res.json({ success: true, message: 'If an account exists, a password reset link will be sent to that email.' });
-  if (permitted) void requestEmailReset(parsed.data.email).catch(() => {
+  if (permitted) setImmediate(() => { void requestEmailReset(parsed.data.email).catch(() => {
     // Never log Google SDK errors, email addresses, reset links or credentials.
     console.error('[email-recovery] Delivery failed; check sender configuration.');
-  });
+  }); });
 });
 externalAuthRouter.post('/email/reset-password', (req, res) => {
   if (!getExternalAuthConfig().gmail) { res.status(503).json(error('Email recovery is not configured.', 'not_configured')); return; }
