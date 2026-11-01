@@ -92,7 +92,7 @@ adminUsersRouter.put('/:id/permissions', (req: Request, res: Response) => {
   }
 
   try {
-    setUserPermissions(id, parsed.data.permissions as any, actor(req).userId);
+    setUserPermissions(id, parsed.data.permissions as any);
     res.json({ success: true, id, permissions: parsed.data.permissions });
   } catch (err: any) {
     if (err.code === 'primary_admin_protected') {

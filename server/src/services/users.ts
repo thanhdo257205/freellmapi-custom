@@ -90,7 +90,7 @@ export function setUserRole(userId: number, role: UserRole, actorUserId: number)
  * Update granular permissions for a user.
  * Primary admin permissions cannot be altered.
  */
-export function setUserPermissions(userId: number, permissions: Permission[], actorUserId: number): void {
+export function setUserPermissions(userId: number, permissions: Permission[]): void {
   const db = getDb();
   const target = db.prepare('SELECT id, is_primary FROM users WHERE id = ?').get(userId) as { id: number; is_primary: number } | undefined;
   if (!target) {
