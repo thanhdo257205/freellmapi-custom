@@ -144,7 +144,9 @@
     "failures": "අසාර්ථකවීම්",
     "dismiss": "අස් කරන්න",
     "status": "තත්ත්වය",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "සැකසීම්",

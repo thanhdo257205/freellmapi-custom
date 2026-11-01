@@ -144,7 +144,9 @@
     "failures": "Misslyckanden",
     "dismiss": "Avslut",
     "status": "Status",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Inställningar",

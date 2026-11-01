@@ -144,7 +144,9 @@
     "failures": "شکست ها",
     "dismiss": "رد کردن",
     "status": "وضعیت",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "تنظیمات",

@@ -144,7 +144,9 @@
     "failures": "الفشل",
     "dismiss": "استبعاد",
     "status": "الحالة",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "الإعدادات",

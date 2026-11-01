@@ -144,7 +144,9 @@
     "failures": "Epäonnistumiset",
     "dismiss": "Hylkäys",
     "status": "Tila",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Asetukset",

@@ -144,7 +144,9 @@
     "failures": "실패",
     "dismiss": "닫기",
     "status": "상태",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "설정",

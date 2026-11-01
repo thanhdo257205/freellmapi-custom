@@ -144,7 +144,9 @@
     "failures": "ការបរាជ័យ",
     "dismiss": "បណ្តេញចេញ",
     "status": "ស្ថានភាព",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "ការកំណត់",

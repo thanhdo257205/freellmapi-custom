@@ -144,7 +144,9 @@
     "failures": "Kudarák",
     "dismiss": "Feladás",
     "status": "Státusz",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Beállítások",

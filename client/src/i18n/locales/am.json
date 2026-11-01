@@ -144,7 +144,9 @@
     "failures": "ውድቀቶች",
     "dismiss": "አሰናብት",
     "status": "ሁኔታ",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "ማሰናጃዎች",
