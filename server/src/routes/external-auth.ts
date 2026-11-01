@@ -10,7 +10,7 @@ export const externalAuthRouter = Router();
 const ATTEMPT_COOKIE = 'flm_google_attempt';
 const RESULT_COOKIE = 'flm_google_result';
 const cookieOptions = () => ({ httpOnly: true, sameSite: 'lax' as const,
-  secure: getExternalAuthConfig().publicUrl?.startsWith('https:') ?? false, path: '/api/auth/google' });
+  secure: getExternalAuthConfig().publicUrl?.startsWith('https:') ?? false, path: '/' });
 function cookie(req: Request, name: string): string {
   const item = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith(name + '='));
   return item ? item.slice(name.length + 1) : '';
@@ -53,7 +53,8 @@ externalAuthRouter.get('/google/callback', async (req, res) => {
     const ticket = finishGoogleLogin(identity, attempt.inviteCode);
     res.cookie(RESULT_COOKIE, ticket, { ...cookieOptions(), maxAge: 2 * 60 * 1000 });
     res.redirect(config.publicUrl + '/?auth=google');
-  } catch {
+  } catch (err: any) {
+    console.error('[google-auth] Callback failed:', err?.message || err);
     res.clearCookie(RESULT_COOKIE, cookieOptions());
     res.redirect(config.publicUrl + '/?auth_error=google_failed');
   }
