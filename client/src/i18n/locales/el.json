@@ -144,7 +144,9 @@
     "failures": "Αποτυχίες",
     "dismiss": "Απόρριψη",
     "status": "Κατάσταση",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Ρυθμίσεις",

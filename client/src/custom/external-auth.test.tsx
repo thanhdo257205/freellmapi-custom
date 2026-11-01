@@ -68,6 +68,13 @@ async function mount(url = '/', locale: 'en' | 'vi' = 'en') {
   )
   await flush()
 }
+
+// Non-English dictionaries are lazy-loaded, and the first load also pays for
+// Vite's on-demand transform, so a fixed number of flushes can lose the race
+// and leave the English fallback on screen.
+async function until(found: () => boolean) {
+  for (let i = 0; i < 50 && !found(); i++) await flush()
+}
 beforeAll(() => {
   ;(
     globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
@@ -224,6 +231,9 @@ it('opens a recovery link when the browser navigates only to a new fragment', as
 // Vietnamese tabs, so every string on the card has to follow one locale.
 it('renders the whole register view in the selected locale', async () => {
   await mount('/?mode=register', 'vi')
+  await until(() =>
+    container.textContent!.includes('Đăng ký bằng mã mời'),
+  )
   const text = container.textContent!
   expect(text).toContain('Đăng ký bằng mã mời')
   expect(text).toContain('Nhập mã mời, email và mật khẩu để tạo tài khoản.')
@@ -297,6 +307,7 @@ it('reports a failed Google sign-in in the reader language', async () => {
 
 it('reports a failed Google sign-in in Vietnamese for a vi reader', async () => {
   await mount('/?auth_error=missing_attempt_cookie', 'vi')
+  await until(() => container.textContent!.includes('Lỗi phiên đăng nhập'))
   expect(container.textContent).toContain('Lỗi phiên đăng nhập')
 })
 
@@ -305,4 +316,29 @@ it('keeps the token-exchange detail while translating its wrapper', async () => 
   expect(container.textContent).toContain(
     'Google connection error (Google token exchange failed: invalid_grant)',
   )
+})
+
+// The eye toggle is read out by screen readers and shown as a tooltip, so its
+// name is user-facing text too. It lives in attributes, not textContent.
+it('names the password toggle in the reader language', async () => {
+  await mount('/', 'vi')
+  await until(() =>
+    !!container.querySelector('button[aria-label="Hiện mật khẩu"]'),
+  )
+  const toggle = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Hiện mật khẩu"]',
+  )!
+  expect(toggle.title).toBe('Hiện mật khẩu')
+  act(() => toggle.click())
+  expect(toggle.getAttribute('aria-label')).toBe('Ẩn mật khẩu')
+  expect(toggle.title).toBe('Ẩn mật khẩu')
+})
+
+it('names the password toggle in English for an en reader', async () => {
+  await mount('/', 'en')
+  const toggle = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Show password"]',
+  )!
+  act(() => toggle.click())
+  expect(toggle.getAttribute('aria-label')).toBe('Hide password')
 })

@@ -144,7 +144,9 @@
     "failures": "ব্যর্থতা",
     "dismiss": "খারিজ",
     "status": "স্ট্যাটাস",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "সেটিংস",

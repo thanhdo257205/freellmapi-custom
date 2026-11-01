@@ -144,7 +144,9 @@
     "failures": "Nesėkmės",
     "dismiss": "Atleisti",
     "status": "Statusas",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Nustatymai",

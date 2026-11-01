@@ -144,7 +144,9 @@
     "failures": "Failures",
     "dismiss": "Dismiss",
     "status": "Status",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Settings",

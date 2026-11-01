@@ -144,7 +144,9 @@
     "failures": "Thất bại",
     "dismiss": "Loại bỏ",
     "status": "Trạng thái",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "showPassword": "Hiện mật khẩu",
+    "hidePassword": "Ẩn mật khẩu"
   },
   "settings": {
     "title": "Cài đặt",

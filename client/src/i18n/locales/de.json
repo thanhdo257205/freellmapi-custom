@@ -144,7 +144,9 @@
     "failures": "Misserfolge",
     "dismiss": "Entlassen",
     "status": "Status",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Einstellungen",
