@@ -66,7 +66,7 @@ export function recordUserUsage(userId: number, tokens: number = 0): void {
         requests = requests + 1,
         tokens = tokens + excluded.tokens
     `).run(userId, month, tokenCount);
-  } catch (err) {
+  } catch {
     // Non-blocking telemetry failure
   }
 }
