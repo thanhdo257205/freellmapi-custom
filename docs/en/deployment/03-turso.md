@@ -79,6 +79,41 @@ runtime after closing a stream; the persistence and HTTP checks still passed.
 
 This integration does not upload or replace your current Render data itself.
 
+## Render responsiveness
+
+The synchronous transport makes both `prepare()` and execution network calls.
+The adapter retains at most 128 SELECT statement handles per connection; it
+does not cache query results. A small allowlist of routing settings is fetched
+in one query during the synchronous part of each dashboard request. Writes and
+transaction completion invalidate that snapshot, and it expires before async
+continuations. Session, role, credential, and quota enforcement reads remain live.
+
+Automatic catalog polling/replay is skipped on Turso because applying thousands
+of rows synchronously can starve HTTP health checks. Existing durable catalog
+rows remain available, and bundled migrations still run on deployment. This
+means remote installs do not automatically receive the hosted signed catalog.
+Manual catalog imports and large model registrations can still block; perform
+them during maintenance until a batch/asynchronous remote apply path exists.
+`CATALOG_SYNC_DISABLED=1` remains available for local SQLite as well.
+
+Remote provider-health passes default to two workers (local SQLite keeps eight)
+and yield to I/O between keys. `HEALTH_CHECK_CONCURRENCY` explicitly overrides
+this default; keep it low on a small instance with a remote database.
+
+A read-only development-machine sample on 2026-11-01 measured 12 individual
+routing-setting reads at 1,863 ms versus 142 ms for one grouped read. Repeated
+SELECTs with reused handles had a 71 ms median versus 142 ms without reuse
+(five alternating samples). These numbers are not end-to-end dashboard timings
+or a production capacity guarantee. Keep the app and database geographically
+close and measure with the expected number of concurrent users.
+
+Render Free also sleeps after 15 minutes without inbound traffic, and waking
+takes about a minute. That cold start is distinct from an unhealthy restart:
+Render's HTTP health checks have a five-second deadline and repeated failures
+can restart a running service. A paid instance removes idle sleep; it does not
+remove synchronous database blocking. See [Render Free limits](https://render.com/docs/free)
+and [health checks](https://render.com/docs/health-checks).
+
 ## Backups and operational limits
 
 - The raw-file `FREEAPI_DB_BACKUP_*` restore/upload pump is skipped remotely;

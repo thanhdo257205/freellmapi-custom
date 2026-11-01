@@ -9,6 +9,7 @@ import { userKeysRouter } from '../routes/user-keys.js';
 import { externalAuthRouter } from '../routes/external-auth.js';
 import { customAuthRouter } from './auth.js';
 import { userInferenceGate } from '../middleware/user-rate-limit.js';
+import { withRoutingSettingsScope } from '../db/routing-settings-scope.js';
 
 // Everything this fork adds to the HTTP surface is wired here, so upstream's
 // app.ts keeps a handful of added lines instead of edited mount statements.
@@ -85,6 +86,7 @@ function installGate(app: Express, gate: PermissionGate): void {
 }
 
 export function registerCustomRoutes(app: Express): void {
+  app.use('/api', (_req, _res, next) => withRoutingSettingsScope(next));
   // Rate-limiting and usage tracking gate for member personal API keys (/v1 inference)
   app.use('/v1', userInferenceGate);
 
