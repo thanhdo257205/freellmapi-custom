@@ -12,7 +12,7 @@ import { parseKeysFromFile, stripJsoncComments, stripTrailingCommas } from '../l
 import { assessProviderUrl } from '../lib/url-guard.js';
 import { verifyCredentials } from '../services/auth.js';
 import { getActiveCooldownsForKeys, clearCooldownsForKey } from '../services/ratelimit.js';
-import { getMonthlyBudgetCaps, getMonthlyUsage, nextMonthResetAt } from '../services/key-budget.js';
+import { nextMonthResetAt } from '../services/key-budget.js';
 import { resolveCustomEndpointKey, customEndpointKeyIds, siblingEndpointKeyId, endpointHasCredential, normalizeGroupLabel, setCustomEndpointGroup } from '../services/custom-endpoint.js';
 import { registerCustomModels, registerCustomChatModels } from '../services/custom-model-register.js';
 import { registerCustomMediaModel } from '../services/custom-media-register.js';
@@ -382,7 +382,16 @@ keysRouter.get('/providers', (_req: Request, res: Response) => {
 // List all keys (masked)
 keysRouter.get('/', (_req: Request, res: Response) => {
   const db = getDb();
-  const rows = db.prepare('SELECT * FROM api_keys ORDER BY created_at DESC').all() as any[];
+  const now = Date.now();
+  // Fetch current-month usage with the roster, rather than two remote reads
+  // per key. Caps already live on the api_keys row. Pin one UTC month for the
+  // entire response, including keys with no usage or only past-month usage.
+  const rows = db.prepare(`
+    SELECT ak.*, COALESCE(u.requests, 0) AS monthly_requests, COALESCE(u.tokens, 0) AS monthly_tokens
+    FROM api_keys ak
+    LEFT JOIN key_monthly_usage u ON u.key_id = ak.id AND u.month = ?
+    ORDER BY ak.created_at DESC
+  `).all(new Date(now).toISOString().slice(0, 7)) as any[];
   const modelCounts = new Map<string, number>();
   const modelCountFor = (platform: string): number => {
     if (!modelCounts.has(platform)) modelCounts.set(platform, enabledModelCount(platform));
@@ -461,11 +470,9 @@ keysRouter.get('/', (_req: Request, res: Response) => {
     }
     const cooldowns = cooldownsByKeyId.get(Number(row.id)) ?? [];
     const scope = parseModelScope(row.model_scope_json);
-    const budgetCaps = getMonthlyBudgetCaps(Number(row.id));
     // Usage alongside the caps so the dashboard can show "342 of 1,000 this
     // month" instead of only the cap (OpenRouter's GET /api/v1/key returns
     // limit_remaining for the same reason).
-    const monthlyUsage = getMonthlyUsage(Number(row.id));
     return {
       id: row.id,
       platform: row.platform,
@@ -475,12 +482,12 @@ keysRouter.get('/', (_req: Request, res: Response) => {
       // Optional custom-endpoint group label (#1176); null = legacy single
       // "Custom" group.
       groupLabel: row.group_label ?? null,
-      monthlyRequestCap: budgetCaps.requestCap,
-      monthlyTokenCap: budgetCaps.tokenCap,
+      monthlyRequestCap: row.monthly_request_cap,
+      monthlyTokenCap: row.monthly_token_cap,
       monthlyUsage: {
-        requests: monthlyUsage.requests,
-        tokens: monthlyUsage.tokens,
-        resetsAt: nextMonthResetAt(),
+        requests: Number(row.monthly_requests),
+        tokens: Number(row.monthly_tokens),
+        resetsAt: nextMonthResetAt(now),
       },
       status: row.status,
       enabled: row.enabled === 1,
