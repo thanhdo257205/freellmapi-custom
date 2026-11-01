@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
+import { useI18n } from '@/i18n'
 import { useExternalAuthMethods } from './use-external-auth'
 
 function RecoveryContainer({ children }: { children: ReactNode }) {
@@ -21,11 +22,12 @@ export function ExternalForgotPassword({
   onBack: () => void
   legacy: ReactNode
 }) {
+  const { t } = useI18n()
   const { data, isPending, isError, error, refetch } = useExternalAuthMethods()
   if (isPending)
     return (
       <RecoveryContainer>
-        <p role="status">Loading recovery options…</p>
+        <p role="status">{t('auth.loading')}</p>
       </RecoveryContainer>
     )
   if (data?.emailResetEnabled)
@@ -43,10 +45,10 @@ export function ExternalForgotPassword({
     return (
       <RecoveryContainer>
         <div className="rounded-3xl border bg-card p-6 space-y-4">
-          <p role="alert">Unable to load recovery options. Please try again.</p>
-          <Button onClick={() => refetch()}>Retry</Button>
+          <p role="alert">{t('auth.recoveryOptionsFailed')}</p>
+          <Button onClick={() => refetch()}>{t('common.retry')}</Button>
           <Button variant="outline" onClick={onBack}>
-            Back to sign in
+            {t('auth.backToLogin')}
           </Button>
         </div>
       </RecoveryContainer>
@@ -54,13 +56,12 @@ export function ExternalForgotPassword({
   return (
     <RecoveryContainer>
       <div className="rounded-3xl border bg-card p-6 space-y-4">
-        <h1 className="text-lg font-semibold">Password recovery</h1>
+        <h1 className="text-lg font-semibold">{t('auth.passwordRecovery')}</h1>
         <p className="text-sm text-muted-foreground">
-          Email recovery is not configured yet. Contact your administrator, or
-          use Google if your account is linked.
+          {t('auth.recoveryNotConfigured')}
         </p>
         <Button variant="outline" onClick={onBack}>
-          Back to sign in
+          {t('auth.backToLogin')}
         </Button>
       </div>
     </RecoveryContainer>
@@ -74,6 +75,7 @@ export function EmailRecovery({
   resetToken?: string
   onBack: () => void
 }) {
+  const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -90,7 +92,7 @@ export function EmailRecovery({
         password.length > 128 ||
         password !== confirmation)
     ) {
-      setError('Use 8–128 characters and make sure both passwords match.')
+      setError(t('auth.passwordRulesError'))
       return
     }
     setBusy(true)
@@ -121,20 +123,20 @@ export function EmailRecovery({
   return (
     <div className="rounded-3xl border bg-card p-6 space-y-4">
       <h1 className="text-lg font-semibold">
-        {resetting ? 'Choose a new password' : 'Forgot your password?'}
+        {resetting ? t('auth.chooseNewPassword') : t('auth.forgotYourPassword')}
       </h1>
       {done ? (
         <p role="status" className="text-sm text-muted-foreground">
           {resetting
-            ? 'Your password has been changed. Sign in with your new password. Your previous sessions have been signed out.'
-            : 'If an account exists, a reset link will be sent to that email. Check your inbox and spam folder. The link expires in 15 minutes.'}
+            ? t('auth.passwordChangedHint')
+            : t('auth.resetLinkSentHint')}
         </p>
       ) : (
         <form onSubmit={submit} className="space-y-4">
           {resetting ? (
             <>
               <div className="space-y-2">
-                <Label htmlFor="email-reset-password">New password</Label>
+                <Label htmlFor="email-reset-password">{t('auth.newPassword')}</Label>
                 <PasswordInput
                   id="email-reset-password"
                   autoComplete="new-password"
@@ -146,7 +148,7 @@ export function EmailRecovery({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email-reset-confirm">Confirm password</Label>
+                <Label htmlFor="email-reset-confirm">{t('auth.confirmPassword')}</Label>
                 <PasswordInput
                   id="email-reset-confirm"
                   autoComplete="new-password"
@@ -160,7 +162,7 @@ export function EmailRecovery({
             </>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="recovery-email">Account email</Label>
+              <Label htmlFor="recovery-email">{t('auth.accountEmail')}</Label>
               <Input
                 id="recovery-email"
                 type="email"
@@ -171,7 +173,7 @@ export function EmailRecovery({
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Enter the email used for your FreeLLMAPI account.
+                {t('auth.recoveryEmailHint')}
               </p>
             </div>
           )}
@@ -182,15 +184,15 @@ export function EmailRecovery({
           )}
           <Button type="submit" className="w-full" disabled={busy}>
             {busy
-              ? 'Please wait…'
+              ? t('auth.pleaseWait')
               : resetting
-                ? 'Save new password'
-                : 'Send reset link'}
+                ? t('auth.saveNewPassword')
+                : t('auth.sendResetLink')}
           </Button>
         </form>
       )}
       <Button type="button" variant="outline" onClick={onBack}>
-        Back to sign in
+        {t('auth.backToLogin')}
       </Button>
     </div>
   )
