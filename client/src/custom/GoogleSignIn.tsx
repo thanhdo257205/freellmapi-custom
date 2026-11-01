@@ -51,7 +51,7 @@ export function GoogleSignIn({
       )
       const destination = new URL(url)
       if (destination.origin !== 'https://accounts.google.com')
-        throw new Error('Invalid Google sign-in destination')
+        throw new Error(t('auth.googleDestBlockedError'))
       window.location.assign(destination.href)
     } catch (err) {
       setError((err as Error).message)
