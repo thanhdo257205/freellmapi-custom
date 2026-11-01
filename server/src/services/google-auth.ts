@@ -104,6 +104,12 @@ export function takeGoogleAttempt(
   return attempt;
 }
 
+// jose gives exp, nbf and maxTokenAge one shared clockTolerance. Two minutes of
+// skew is what the iat/nbf claims need, but exp is what limits how long a
+// captured token can be replayed, so it is re-checked against a margin of its own.
+const CLOCK_TOLERANCE_SECONDS = 120;
+const EXPIRY_TOLERANCE_SECONDS = 5;
+
 export async function verifyGoogleIdToken(
   token: string,
   nonce: string,
@@ -115,10 +121,12 @@ export async function verifyGoogleIdToken(
     audience: config.clientId,
     algorithms: ['RS256'],
     requiredClaims: ['exp', 'iat', 'sub', 'email', 'email_verified', 'nonce'],
-    clockTolerance: 120,
+    clockTolerance: CLOCK_TOLERANCE_SECONDS,
     maxTokenAge: '10m',
   });
   if (
+    payload.exp === undefined ||
+    payload.exp + EXPIRY_TOLERANCE_SECONDS <= Math.floor(Date.now() / 1000) ||
     typeof payload.nonce !== 'string' ||
     !safeEqual(payload.nonce, nonce) ||
     payload.email_verified !== true ||
