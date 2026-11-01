@@ -26,6 +26,7 @@ const ADMIN_ONLY = [
   '/api/backups',
   '/api/update',
   '/api/invites',
+  '/api/admin/users',
 ];
 
 let server: Server;

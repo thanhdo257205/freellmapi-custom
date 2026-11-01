@@ -22,7 +22,7 @@ Unlike provider keys, user keys are **hashed, not AES-256-GCM encrypted**: they 
 
 ## Endpoints
 
-All of these are dashboard-session routes (`Authorization: Bearer <session token>` from `/api/auth/login`), scoped to the caller — a key is never valid on `/api/*` ([`requireAuth`](../../../server/src/middleware/requireAuth.ts) only accepts session tokens). Mounted at `/api/user` with `requireAuth` but **not** `requireAdmin` ([server/src/custom/register.ts:41](../../../server/src/custom/register.ts#L41)), so members manage their own keys.
+All of these are dashboard-session routes (`Authorization: Bearer <session token>` from `/api/auth/login`), scoped to the caller — a key is never valid on `/api/*` ([`requireAuth`](../../../server/src/middleware/requireAuth.ts) only accepts session tokens). Mounted at `/api/user` with `requireAuth` but **not** `requireAdmin` ([server/src/custom/register.ts:45](../../../server/src/custom/register.ts#L45)), so members manage their own keys.
 
 | Method | Path | Effect |
 |---|---|---|
@@ -65,13 +65,13 @@ A member's key routes through the same catalog, fallback chain, sticky sessions 
 
 Verified against the current code — do not document or sell these as features:
 
-- **`rpm_limit` is inert.** The column defaults to `60` and `validateUserApiKey` returns it, but no consumer reads it ([user-keys.ts:143](../../../server/src/services/user-keys.ts#L143)); `resolveAuth` drops it. The only real ceilings are the per-IP proxy limiter (`PROXY_RATE_LIMIT_RPM`, default 120) and the upstream providers' own quotas.
+- **`rpm_limit` is inert.** The column defaults to `60` and `validateUserApiKey` returns it, but no consumer reads it ([user-keys.ts:135](../../../server/src/services/user-keys.ts#L135)); `resolveAuth` drops it. The same is now true of the `role` that `validateUserApiKey` also reads ([`:134`](../../../server/src/services/user-keys.ts#L134)) — `resolveAuth`'s user branch keeps only `{ userId, email }` ([system-prompt.ts:65](../../../server/src/lib/system-prompt.ts#L65)), so a member key and an admin key are indistinguishable to the inference pipeline. The only real ceilings are the per-IP proxy limiter (`PROXY_RATE_LIMIT_RPM`, default 120) and the upstream providers' own quotas.
 - **No per-user usage accounting.** `kind: 'user'` carries `userId` and `email`, and nothing downstream uses them, so Analytics still reports the instance as one tenant. Attribution by person currently means one instance per person, or reading `last_used_at`.
 - **No expiry** on a key, and no way to scope one to a model or an endpoint.
 
 ## Cost of using one
 
-Every authenticated inference request with a user key runs `SELECT` on `key_hash` **plus** a `UPDATE … last_used_at` write, best-effort and inside a `try`/`catch` that swallows lock and concurrency errors ([user-keys.ts:133](../../../server/src/services/user-keys.ts#L133)). On local SQLite that is negligible; on the hosted [Turso](../deployment/03-turso.md) driver, where each query is a blocking network round trip, it is two extra trips per request. `lastUsedAt` is therefore approximate — a lost write is silently ignored.
+Every authenticated inference request with a user key runs `SELECT` on `key_hash` **plus** a `UPDATE … last_used_at` write, best-effort and inside a `try`/`catch` that swallows lock and concurrency errors ([user-keys.ts:126](../../../server/src/services/user-keys.ts#L126)). On local SQLite that is negligible; on the hosted [Turso](../deployment/03-turso.md) driver, where each query is a blocking network round trip, it is two extra trips per request. `lastUsedAt` is therefore approximate — a lost write is silently ignored.
 
 ## Verification
 
