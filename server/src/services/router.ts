@@ -43,6 +43,15 @@ import { modelStatsKey, endpointScopeForBaseUrl } from '../lib/endpoint-scope.js
 import { isToolBenched } from '../lib/tool-capability.js';
 import { parseModelScope, scopeAllows } from '../lib/model-scope.js';
 import { getKeyQuotaHeadroom, inferQuotaPoolKey } from './provider-quota.js';
+import {
+  getUsableKeysByPlatform,
+  getUsableKeysForPlatform,
+  countUsableKeysByPlatform,
+  getAllUsableKeys,
+  invalidateKeyCache,
+  type KeyRow,
+} from './key-cache.js';
+export type { KeyRow };
 import type { BaseProvider } from '../providers/base.js';
 import type { Platform } from '@freellmapi/shared/types.js';
 import type { Db } from '../db/types.js';
@@ -131,26 +140,6 @@ export function summarizeExhaustion(
   return `All models exhausted: ${total} route${total === 1 ? '' : 's'} checked (${parts.join(', ')}). ${EXHAUSTION_ADVICE}${etaSuffix}${keylessSuffix}`;
 }
 
-interface KeyRow {
-  id: number;
-  platform: string;
-  label: string | null;
-  encrypted_key: string;
-  iv: string;
-  auth_tag: string;
-  status: string;
-  enabled: number;
-  base_url: string | null;
-  // Optional JSON array of model_id strings this key may serve; NULL = every
-  // model of its platform (#657).
-  model_scope_json: string | null;
-  // Encrypted per-key proxy override (#590); all NULL = no override.
-  proxy_encrypted: string | null;
-  proxy_iv: string | null;
-  proxy_auth_tag: string | null;
-  monthly_request_cap?: number;
-  monthly_token_cap?: number;
-}
 
 // Chain row joined with the model fields the bandit needs to score it.
 export interface ChainRow {
@@ -1068,28 +1057,10 @@ interface ScoredEntry {
 }
 
 // Enabled + healthy/unknown key count per platform, for pooled-budget scaling.
-// This is the SAME filter both /api/fallback endpoints use (issue #456): the
-// monthly budget is a PER-KEY free-tier allowance, so N usable keys pool N× the
-// capacity. `monthlyUsedTokens` is already summed across all keys, so budget
-// must scale to match or the headroom guardrail damps a multi-key model to the
-// floor after just one account's worth of tokens.
+// Uses the in-memory key registry (zero Turso DB queries during normal operation).
 function usableKeyCountsByPlatform(db: Db): Map<string, number> {
-  // Per-request GROUP BY on api_keys; only changes on key writes. Real-time
-  // correctness is backed by selectKeyForModel's live per-key checks — a stale
-  // count can at worst walk one extra candidate, never route to a dead key.
-  // ponytail: 5s TTL instead of write-point invalidation; per-write hooks if that ever matters.
-  if (cachesEnabled() && keyCountsCache && keyCountsCache.db === db && Date.now() - keyCountsCache.at < KEY_COUNTS_TTL_MS) {
-    return keyCountsCache.map;
-  }
-  const rows = db.prepare(
-    "SELECT platform, COUNT(*) AS count FROM api_keys WHERE enabled = 1 AND status IN ('healthy', 'unknown') GROUP BY platform"
-  ).all() as { platform: string; count: number }[];
-  const map = new Map(rows.map(r => [r.platform, r.count]));
-  keyCountsCache = { db, at: Date.now(), map };
-  return map;
+  return countUsableKeysByPlatform(db);
 }
-const KEY_COUNTS_TTL_MS = 5_000;
-let keyCountsCache: { db: Db; at: number; map: Map<string, number> } | null = null;
 
 function scoreChainEntry(
   entry: ChainRow,
@@ -1596,9 +1567,7 @@ function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: 
 
   let allKeys = cachedPlatformKeys?.get(entry.platform);
   if (!allKeys) {
-    allKeys = db.prepare(
-      "SELECT * FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown')"
-    ).all(entry.platform) as KeyRow[];
+    allKeys = getUsableKeysForPlatform(entry.platform, db);
     cachedPlatformKeys?.set(entry.platform, allKeys);
   }
   if (allKeys.length === 0) {
@@ -1695,6 +1664,14 @@ function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: 
     } catch {
       db.prepare("UPDATE api_keys SET status = 'error', last_checked_at = datetime('now') WHERE id = ?")
         .run(key.id);
+      invalidateKeyCache();
+      // The SELECT below excludes this row now, so the per-pass cache must too:
+      // otherwise every later model on this platform re-decrypts the same broken
+      // ciphertext and re-issues this UPDATE.
+      if (cachedPlatformKeys) {
+        const pool = cachedPlatformKeys.get(entry.platform) ?? allKeys;
+        cachedPlatformKeys.set(entry.platform, pool.filter(k => k.id !== key.id));
+      }
       note('decrypt-error');
       continue;
     }
@@ -1766,9 +1743,7 @@ export function hasOtherUsableKey(modelDbId: number, excludingKeyId: number, ski
   if (!m) return false;
 
   const limits = { rpm: m.rpm_limit, rpd: m.rpd_limit, tpm: m.tpm_limit, tpd: m.tpd_limit };
-  const keys = db.prepare(
-    "SELECT id, model_scope_json FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown')"
-  ).all(m.platform) as { id: number; model_scope_json: string | null }[];
+  const keys = getUsableKeysForPlatform(m.platform, db);
 
   // Keys of the model's own custom endpoint (#212, #619); a key belonging to a
   // DIFFERENT endpoint cannot serve it, so it doesn't count as an alternative.
@@ -1828,9 +1803,7 @@ export function routableKeyIdsForModel(modelDbId: number): number[] {
     .get(modelDbId) as { platform: string; model_id: string; key_id: number | null } | undefined;
   if (!m) return [];
 
-  const keys = db.prepare(
-    "SELECT id, model_scope_json FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown')"
-  ).all(m.platform) as { id: number; model_scope_json: string | null }[];
+  const keys = getUsableKeysForPlatform(m.platform, db);
 
   const endpointKeyIds = m.platform === 'custom' && m.key_id != null
     ? customEndpointKeyIds(db, m.key_id)
@@ -2050,9 +2023,7 @@ export function getOrderedFusionChain(estimatedTokens: number, exactOutputReserv
   // That leaves one panel slot dead on arrival and reports the failure as the
   // misleading "no available key for model". Passing a placeholder token count
   // here made both size gates no-ops.
-  const usableKeys = db.prepare(
-    "SELECT id, platform, model_scope_json FROM api_keys WHERE enabled = 1 AND status IN ('healthy', 'unknown')"
-  ).all() as { id: number; platform: string; model_scope_json: string | null }[];
+  const usableKeys = getAllUsableKeys(db);
   // Scope parsed once per key row (#657); the servable filter below re-checks
   // membership per model.
   const keysByPlatform = new Map<string, { id: number; scope: Set<string> | null }[]>();

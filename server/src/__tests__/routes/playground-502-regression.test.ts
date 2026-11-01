@@ -1,30 +1,98 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Express } from 'express';
-import { createApp } from '../../app.js';
-import { getDb, initDb } from '../../db/index.js';
-import { runFallbackLoop, newFallbackState, type FallbackHooks } from '../../lib/fallback-loop.js';
-import { newClientAbortError } from '../../lib/error-classify.js';
-import { logRequest, persistRequestAttempts } from '../../lib/request-log.js';
-import { routeRequest, type RouteResult } from '../../services/router.js';
-import { encrypt, initEncryptionKey } from '../../lib/crypto.js';
-import { acquireLease, releaseLease, resetLeases } from '../../services/ratelimit.js';
-import { wrapTursoDatabase } from '../../db/turso.js';
-import { readRoutingSetting, withRoutingSettingsScope } from '../../db/routing-settings-scope.js';
+// Type-only imports are erased, so they stay safe alongside the provider mock.
+import type { FallbackHooks } from '../../lib/fallback-loop.js';
+import type { RouteResult } from '../../services/router.js';
 
-async function request(
-  app: Express,
-  method: string,
-  path: string,
-  headers: Record<string, string> = {},
-) {
+// One fake provider for the whole file: test 6 parks a real /v1 inference call
+// mid-upstream, which is only possible if the upstream call itself is ours.
+// `hasProvider` stays real so routing still walks the seeded catalog.
+const chatCompletion = vi.fn();
+const streamChatCompletion = vi.fn();
+const fakeProvider = { name: 'fake', chatCompletion, streamChatCompletion } as any;
+
+vi.mock('../../providers/index.js', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    getProvider: () => fakeProvider,
+    resolveProvider: () => fakeProvider,
+  };
+});
+
+const { createApp } = await import('../../app.js');
+const { getDb, initDb, getUnifiedApiKey } = await import('../../db/index.js');
+const { runFallbackLoop, newFallbackState } = await import('../../lib/fallback-loop.js');
+const { newClientAbortError } = await import('../../lib/error-classify.js');
+const { logRequest, persistRequestAttempts } = await import('../../lib/request-log.js');
+const { routeRequest, setRoutingStrategy } = await import('../../services/router.js');
+const { encrypt, initEncryptionKey } = await import('../../lib/crypto.js');
+const { acquireLease, releaseLease, resetLeases } = await import('../../services/ratelimit.js');
+const { wrapTursoDatabase } = await import('../../db/turso.js');
+const { readRoutingSetting, withRoutingSettingsScope } = await import('../../db/routing-settings-scope.js');
+
+async function withServer<T>(app: Express, run: (base: string) => Promise<T>): Promise<T> {
   const server = app.listen(0, '127.0.0.1');
   if (!server.listening) await new Promise<void>(resolve => server.once('listening', () => resolve()));
   const addr = server.address() as { port: number };
-  const url = `http://127.0.0.1:${addr.port}${path}`;
-  const res = await fetch(url, { method, headers });
-  const data = await res.json().catch(() => null);
-  server.close();
-  return { status: res.status, body: data };
+  try {
+    return await run(`http://127.0.0.1:${addr.port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close(err => (err ? reject(err) : resolve())));
+  }
+}
+
+async function httpGet(base: string, path: string) {
+  const res = await fetch(`${base}${path}`);
+  return { status: res.status, body: await res.json().catch(() => null) as any };
+}
+
+async function httpPost(base: string, path: string, body: unknown, key: string) {
+  const res = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json().catch(() => null) as any };
+}
+
+/** Poll until `pred` holds, so a test can act at a specific point of an
+ *  in-flight request without betting on a wall-clock threshold. */
+async function waitUntil(pred: () => boolean, what: string) {
+  for (let i = 0; i < 200; i++) {
+    if (pred()) return;
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  throw new Error(`Timed out waiting for ${what}`);
+}
+
+/**
+ * Count one-key settings reads (`SELECT … FROM settings WHERE key = ?`) issued
+ * through `db.prepare` while the patch is installed. `restore()` must run when
+ * the test is done: it puts the real `prepare` back, and the wrapper only
+ * replaces `get` on the statement it hands out, so `.all`/`.run` still work.
+ */
+function instrumentSettingsQueries(db: any): { total: () => number; floor: () => number; restore: () => void } {
+  const original = db.prepare.bind(db);
+  let total = 0;
+  let floor = 0;
+  db.prepare = (sql: string) => {
+    const stmt = original(sql);
+    if (!/FROM\s+settings\s+WHERE\s+key\s*=/i.test(sql)) return stmt;
+    total++;
+    const originalGet = stmt.get.bind(stmt);
+    stmt.get = (...args: unknown[]) => {
+      if (args[0] === 'min_context_window') floor++;
+      return originalGet(...args);
+    };
+    return stmt;
+  };
+  return {
+    total: () => total,
+    floor: () => floor,
+    restore: () => { db.prepare = original; },
+  };
 }
 
 let keySeq = 2000;
@@ -55,6 +123,8 @@ describe('Playground HTTP 502 & Render Health Check Regression Suite', () => {
     initDb(':memory:');
     initEncryptionKey(getDb() as any);
     resetLeases();
+    chatCompletion.mockReset();
+    streamChatCompletion.mockReset();
     app = createApp();
   });
 
@@ -82,24 +152,7 @@ describe('Playground HTTP 502 & Render Health Check Regression Suite', () => {
     }
 
     // Instrument settings queries
-    let minContextWindowQueries = 0;
-    let totalSettingsQueries = 0;
-    const originalPrepare = db.prepare.bind(db);
-    db.prepare = (sql: string) => {
-      if (/FROM\s+settings\s+WHERE\s+key\s*=/i.test(sql)) {
-        totalSettingsQueries++;
-        return {
-          ...originalPrepare(sql),
-          get: (...args: unknown[]) => {
-            if (args[0] === 'min_context_window') {
-              minContextWindowQueries++;
-            }
-            return originalPrepare(sql).get(...args);
-          },
-        } as any;
-      }
-      return originalPrepare(sql);
-    };
+    const probe = instrumentSettingsQueries(db);
 
     // Step 1: Initial route picks candidate
     const targetModel = seededModels[0];
@@ -138,13 +191,21 @@ describe('Playground HTTP 502 & Render Health Check Regression Suite', () => {
 
     await runFallbackLoop(hooks);
 
+    const settingsQueries = probe.total();
+    const floorQueries = probe.floor();
+    probe.restore();
+
     // Verify fallback succeeded on next candidate
     expect(attempts).toBe(2);
     expect(finalOutcome).toBeTruthy();
 
-    // Verify min_context_window floor was hoisted: queried at most once per routeRequest call (2x total)
-    // instead of once per candidate model in the pool (which previously produced hundreds of queries)
-    expect(minContextWindowQueries).toBeLessThanOrEqual(2);
+    // The min_context_window floor is hoisted to once per routing pass (2 passes
+    // here). Without the hoist every candidate model re-reads it: 76 SELECTs for
+    // floor alone on this 25-model catalog.
+    expect(floorQueries).toBeLessThanOrEqual(2);
+    // And the two-hop request stays within per-pass settings reads (~14 per
+    // pass) instead of the ~100 single-key SELECTs the storm produced.
+    expect(settingsQueries).toBeLessThanOrEqual(40);
   });
 
   it('2. Provider timeout triggers failover to next candidate cleanly', async () => {
@@ -293,16 +354,58 @@ describe('Playground HTTP 502 & Render Health Check Regression Suite', () => {
     expect(results.filter(r => r === 'groq').length).toBe(3);     // odd indices succeeded on groq
   });
 
-  it('6. Health check (/api/ping and /livez) responds promptly even during routing work', async () => {
-    // Probe /api/ping
-    const pingRes = await request(app, 'GET', '/api/ping');
-    expect(pingRes.status).toBe(200);
-    expect(pingRes.body.status).toBe('ok');
+  it('6. health probes answer while an inference request is parked on upstream', async () => {
+    const db = getDb();
+    setRoutingStrategy('priority');
+    const enc = encrypt('health-probe-key');
+    db.prepare(`
+      INSERT INTO api_keys (platform, label, encrypted_key, iv, auth_tag, status, enabled)
+      VALUES ('groq', 'health-probe', ?, ?, ?, 'healthy', 1)
+    `).run(enc.encrypted, enc.iv, enc.authTag);
+    const unifiedKey = getUnifiedApiKey();
 
-    // Probe /livez
-    const livezRes = await request(app, 'GET', '/livez');
-    expect(livezRes.status).toBe(200);
-    expect(livezRes.body.status).toBe('ok');
+    // The upstream call is held open until the test lets it go, so every health
+    // probe below lands while the inference is demonstrably still in flight.
+    let releaseUpstream!: () => void;
+    const upstreamGate = new Promise<void>(resolve => { releaseUpstream = resolve; });
+    let upstreamStarted = false;
+    let upstreamSettled = false;
+    chatCompletion.mockImplementation(async () => {
+      upstreamStarted = true;
+      await upstreamGate;
+      upstreamSettled = true;
+      return {
+        choices: [{ message: { role: 'assistant', content: 'late but fine' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      };
+    });
+
+    await withServer(app, async (base) => {
+      const inference = httpPost(base, '/v1/chat/completions', {
+        messages: [{ role: 'user', content: 'park me on upstream' }],
+      }, unifiedKey);
+
+      await waitUntil(() => upstreamStarted, 'the inference call to reach the provider');
+
+      const livez = await httpGet(base, '/livez');
+      const readyz = await httpGet(base, '/readyz');
+      const ping = await httpGet(base, '/api/ping');
+
+      // The proof: all three answers were produced while the inference was
+      // still parked, i.e. Render's checker is not queued behind a routing pass.
+      expect(upstreamSettled).toBe(false);
+      expect(livez.status).toBe(200);
+      expect(livez.body.status).toBe('ok');
+      expect(readyz.status).toBe(200);
+      expect(readyz.body.ready_upstreams).toBeGreaterThan(0);
+      expect(ping.status).toBe(200);
+      expect(ping.body.status).toBe('ok');
+
+      releaseUpstream();
+      const inferenceRes = await inference;
+      expect(inferenceRes.status).toBe(200);
+      expect(inferenceRes.body.choices[0].message.content).toBe('late but fine');
+    });
   });
 
   it('7. On Turso, withRoutingSettingsScope collapses all routing settings reads into a single batch query', () => {
@@ -328,5 +431,57 @@ describe('Playground HTTP 502 & Render Health Check Regression Suite', () => {
     // Verify all allowed settings are fetched in a single IN (...) query
     const settingsQueries = prepareSpy.mock.calls.filter(([sql]) => /FROM\s+settings\s+WHERE\s+key\s+IN/i.test(sql));
     expect(settingsQueries).toHaveLength(1);
+  });
+
+  it('8. an undecryptable key is evicted from the pass cache, not retried per model', () => {
+    const db = getDb();
+    setRoutingStrategy('priority');
+
+    const groqModels = db.prepare(
+      "SELECT id FROM models WHERE enabled = 1 AND platform = 'groq'",
+    ).all() as { id: number }[];
+    // The bug only shows up when one pass visits several models of the platform
+    // whose key pool is cached — assert the fixture still provides that.
+    expect(groqModels.length).toBeGreaterThanOrEqual(2);
+
+    // A key that looks healthy until the AES-GCM tag fails, and nothing else to
+    // route to: the pass has to walk every groq model before it gives up.
+    const broken = encrypt('eviction-broken');
+    const badInsert = db.prepare(`
+      INSERT INTO api_keys (platform, label, encrypted_key, iv, auth_tag, status, enabled)
+      VALUES ('groq', 'eviction-broken', ?, ?, ?, 'healthy', 1)
+    `).run(broken.encrypted, broken.iv, `x${broken.authTag.slice(1)}`);
+    const badKeyId = Number(badInsert.lastInsertRowid);
+
+    let badKeyUpdates = 0;
+    const spyDb = db as any;
+    const originalPrepare = spyDb.prepare.bind(spyDb);
+    spyDb.prepare = (sql: string) => {
+      const stmt = originalPrepare(sql);
+      if (/UPDATE\s+api_keys\s+SET\s+status\s*=\s*'error'/i.test(sql)) {
+        const run = stmt.run.bind(stmt);
+        stmt.run = (...args: unknown[]) => {
+          badKeyUpdates++;
+          return run(...args);
+        };
+      }
+      return stmt;
+    };
+
+    let exhausted = false;
+    try {
+      routeRequest(1000);
+    } catch {
+      exhausted = true;
+    } finally {
+      spyDb.prepare = originalPrepare;
+    }
+
+    // One model hit the broken key, so one UPDATE. Without the cache eviction
+    // every later groq model re-decrypted it and re-marked the same row.
+    expect(exhausted).toBe(true);
+    expect(badKeyUpdates).toBe(1);
+    expect((db.prepare('SELECT status FROM api_keys WHERE id = ?').get(badKeyId) as { status: string }).status)
+      .toBe('error');
   });
 });
