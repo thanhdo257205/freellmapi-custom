@@ -15,19 +15,57 @@ import { createInviteCode } from '../../services/invites.js';
 // custom migration registration — the failure mode where RBAC silently stops
 // existing while the app still boots and serves traffic.
 
-// Deliberately duplicated from ADMIN_ONLY_PREFIXES rather than imported: if a
+// Deliberately duplicated from PERMISSION_GATES rather than imported: if a
 // merge or an edit shrinks the real list, this copy still demands the 403 and
 // the test fails.
-const ADMIN_ONLY = [
-  '/api/keys',
-  '/api/client-profiles',
-  '/api/logs',
-  '/api/settings',
-  '/api/backups',
-  '/api/update',
-  '/api/invites',
-  '/api/admin/users',
-  '/api/admin/registration-requests',
+const FULL_METHOD_GATES: Array<[string, string]> = [
+  ['/api/keys', 'manage_keys'],
+  ['/api/client-profiles', 'manage_settings'],
+  ['/api/settings', 'manage_settings'],
+  ['/api/update', 'manage_settings'],
+  ['/api/backups', 'manage_backups'],
+  ['/api/logs', 'view_logs'],
+  ['/api/analytics', 'view_logs'],
+  ['/api/health', 'manage_keys'],
+  ['/api/free-tier', 'manage_keys'],
+  ['/api/fallback/rate-limit-usage', 'manage_keys'],
+  ['/api/fallback/token-usage', 'view_logs'],
+  ['/api/fallback/quota-forecast', 'view_logs'],
+  ['/api/invites', 'manage_invites'],
+  ['/api/admin/users', 'manage_users'],
+  ['/api/admin/registration-requests', 'manage_requests'],
+];
+
+// Shared configuration and credential-minting surfaces: reads stay open because
+// the member-facing dashboard renders them, writes do not.
+const WRITE_METHOD_GATES: Array<[string, 'POST' | 'PUT' | 'PATCH' | 'DELETE', string]> = [
+  ['/api/profiles', 'POST', 'manage_settings'],
+  ['/api/profiles/active', 'PUT', 'manage_settings'],
+  ['/api/models', 'POST', 'manage_settings'],
+  ['/api/models/1', 'PATCH', 'manage_settings'],
+  ['/api/fallback', 'PUT', 'manage_settings'],
+  ['/api/fallback/routing', 'PUT', 'manage_settings'],
+  ['/api/cache/config', 'PUT', 'manage_settings'],
+  ['/api/compression/preview', 'POST', 'manage_settings'],
+  ['/api/premium/key', 'POST', 'manage_settings'],
+  ['/api/embeddings/custom', 'POST', 'manage_keys'],
+  ['/api/media/1', 'PUT', 'manage_keys'],
+  ['/api/search/engines/1', 'PATCH', 'manage_keys'],
+  ['/api/decisions/models/1', 'PATCH', 'manage_keys'],
+];
+
+// The exact member-facing reads that must keep working; a gate that breaks these
+// turns the Playground into a wall of 403s.
+const MEMBER_READABLE = [
+  '/api/models',
+  '/api/profiles',
+  '/api/fallback',
+  '/api/search/engines',
+  '/api/media',
+  '/api/embeddings',
+  '/api/decisions/models',
+  '/api/premium',
+  '/api/user/keys',
 ];
 
 let server: Server;
@@ -85,18 +123,45 @@ describe('Customization surface', () => {
   });
 
   it('rejects a member session with 403 on every admin-gated surface', async () => {
-    for (const path of ADMIN_ONLY) {
+    for (const [path, permission] of FULL_METHOD_GATES) {
       const res = await hit(path, 'GET', undefined, memberToken);
-      expect(res.status, `${path} must stay admin-only`).toBe(403);
+      expect(res.status, `${path} must stay gated`).toBe(403);
       expect(res.body?.error?.type, `${path} error shape`).toBe('forbidden');
+      expect(res.body?.error?.message, `${path} names the missing permission`).toContain(permission);
+    }
+  });
+
+  // A permission that only covers reads is no control at all: these are the
+  // writes that rewrite server-wide routing, catalog, cache, or credentials.
+  it('rejects a member session with 403 on every shared-configuration write', async () => {
+    for (const [path, method, permission] of WRITE_METHOD_GATES) {
+      const res = await hit(path, method, {}, memberToken);
+      expect(res.status, `${method} ${path} must be gated`).toBe(403);
+      expect(res.body?.error?.type, `${method} ${path} error shape`).toBe('forbidden');
+      expect(res.body?.error?.message, `${method} ${path} names the missing permission`).toContain(permission);
+    }
+  });
+
+  // The other half of the same rule: the member Playground and model tabs read
+  // these lists, so a gate that swallows them is a regression, not a hardening.
+  it('keeps member-facing configuration reads available', async () => {
+    for (const path of MEMBER_READABLE) {
+      const res = await hit(path, 'GET', undefined, memberToken);
+      expect(res.status, `${path} must not be gated from a member`).not.toBe(403);
+      expect(res.status, `${path} must not fall through to 401`).not.toBe(401);
     }
   });
 
   it('keeps admin sessions and the untouched upstream auth routes working', async () => {
-    for (const path of ADMIN_ONLY) {
+    for (const path of FULL_METHOD_GATES.map(([p]) => p)) {
       const res = await hit(path, 'GET', undefined, adminToken);
       expect(res.status, `${path} must not be gated away from admins`).not.toBe(403);
       expect(res.status, `${path} must not fall through to 401`).not.toBe(401);
+    }
+    for (const [path, method] of WRITE_METHOD_GATES) {
+      const res = await hit(path, method, {}, adminToken);
+      expect(res.status, `${method} ${path} must not be gated away from admins`).not.toBe(403);
+      expect(res.status, `${method} ${path} must not fall through to 401`).not.toBe(401);
     }
     const status = await hit('/api/auth/status');
     expect(status.status).toBe(200);
