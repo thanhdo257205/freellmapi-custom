@@ -46,7 +46,7 @@ async function sendRawGmail(to: string, subject: string, bodyText: string): Prom
     });
 
     return result.ok;
-  } catch (err) {
+  } catch {
     // Delivery failure should not break user registration or admin workflow
     return false;
   }

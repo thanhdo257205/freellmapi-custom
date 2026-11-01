@@ -5,13 +5,10 @@ import { createApp } from '../../app.js';
 import {
   createUser,
   createSession,
-  verifyCredentials,
 } from '../../services/auth.js';
 import {
   createRegistrationRequest,
   listRegistrationRequests,
-  approveRegistrationRequest,
-  rejectRegistrationRequest,
   isRegistrationPending,
 } from '../../services/registration-requests.js';
 
