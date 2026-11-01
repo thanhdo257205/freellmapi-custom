@@ -78,7 +78,7 @@ function httpError(message: string, status: number): Error {
 // log the current operator out mid-restore). `settings` is deliberately NOT
 // here: routing strategy, the unified key and the proxy config are exactly
 // what an operator expects a backup to bring back.
-const EXCLUDED_TABLES = new Set(['users', 'sessions', 'url_tokens']);
+const EXCLUDED_TABLES = new Set(['users', 'sessions', 'url_tokens', 'registration_requests']);
 
 /** `backups` is the on-disk backup index itself; dumping and restoring it
  *  would wipe the metadata that tracks the files. `migrations` is the schema
