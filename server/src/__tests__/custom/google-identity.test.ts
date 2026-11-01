@@ -115,6 +115,57 @@ describe('Google token verification and browser binding', () => {
     ).toBe(false);
   });
 
+  it('keeps a wide clock-skew margin without honouring an expired token', async () => {
+    const keys = await generateKeyPair('RS256');
+    const now = Math.floor(Date.now() / 1000);
+    const config = getExternalAuthConfig().google!;
+    const base = {
+      iss: 'https://accounts.google.com',
+      aud: config.clientId,
+      sub: 'google-sub',
+      iat: now,
+      exp: now + 600,
+      email: 'owner@gmail.com',
+      email_verified: true,
+      nonce: 'expected-nonce',
+    };
+    const sign = (claims: Record<string, unknown>) =>
+      new SignJWT(claims)
+        .setProtectedHeader({ alg: 'RS256' })
+        .sign(keys.privateKey);
+    const resolver = async () => keys.publicKey;
+    // The reason the tolerance is generous: a validator clock sitting a minute
+    // behind Google must still accept the token.
+    expect(
+      await verifyGoogleIdToken(
+        await sign({ ...base, nbf: now + 60 }),
+        'expected-nonce',
+        config,
+        resolver,
+      ),
+    ).toEqual({ email: base.email, subject: base.sub, authoritative: true });
+    // Two seconds past exp is clock noise; a minute past exp is a token the
+    // issuer has already retired.
+    expect(
+      (
+        await verifyGoogleIdToken(
+          await sign({ ...base, exp: now - 2 }),
+          'expected-nonce',
+          config,
+          resolver,
+        )
+      ).subject,
+    ).toBe('google-sub');
+    await expect(
+      verifyGoogleIdToken(
+        await sign({ ...base, exp: now - 60 }),
+        'expected-nonce',
+        config,
+        resolver,
+      ),
+    ).rejects.toThrow();
+  });
+
   it('rejects handoffs after expiry or password revocation', () => {
     const user = createUser('owner@gmail.com', 'OwnerPassword!');
     const identity = { subject: 'sub', email: user.email, authoritative: true };
