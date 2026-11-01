@@ -19,6 +19,8 @@ import { Boxes, ChevronDown, Search, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useI18n } from '@/i18n'
 import { apiFetch } from '@/lib/api'
+import { nextModelSort, sortModelGroups, type ModelSortCol } from '@/lib/model-table-sort'
+import type { SortState } from '@/lib/table-sort'
 import {
   buildGroups,
   clampRankToIndex,
@@ -111,6 +113,11 @@ export default function FallbackPage() {
   const [filterVision, setFilterVision] = useState(false)
   const [filterTools, setFilterTools] = useState(false)
   const [minContext, setMinContext] = useState(0)
+  const [sort, setSort] = useState<SortState<ModelSortCol>>(null)
+
+  function handleToggleSort(col: ModelSortCol) {
+    setSort(prev => nextModelSort(prev, col))
+  }
 
   // The table edits the ACTIVE chain, so it is part of this query's identity
   // (#1021): keyed on 'fallback' alone, switching chains in the manager below
@@ -252,13 +259,20 @@ export default function FallbackPage() {
     if (query && !groupMatchesQuery(g, query)) return false
     return true
   }), [orderedGroups, filterVision, filterTools, minContext, query])
-  const draggable = isManual && !filtersActive
+  const sortedGroups = useMemo(() => {
+    if (!sort) return visibleGroups
+    return sortModelGroups(visibleGroups, sort, rankByKey)
+  }, [visibleGroups, sort, rankByKey])
+  const draggable = isManual && !filtersActive && !sort
 
   // Progressive rendering: grow the row budget whenever the sentinel below the
   // table scrolls near the viewport (drag autoscroll extends it too).
   const [renderLimit, setRenderLimit] = useState(RENDER_CHUNK)
-  const renderedGroups = visibleGroups.slice(0, renderLimit)
-  const hasMoreRows = visibleGroups.length > renderLimit
+  useEffect(() => {
+    setRenderLimit(RENDER_CHUNK)
+  }, [search, filterVision, filterTools, minContext, sort])
+  const renderedGroups = sortedGroups.slice(0, renderLimit)
+  const hasMoreRows = sortedGroups.length > renderLimit
   const sentinelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!hasMoreRows) return
@@ -279,6 +293,7 @@ export default function FallbackPage() {
     setFilterVision(false)
     setFilterTools(false)
     setMinContext(0)
+    setSort(null)
   }
 
   function handleGroupToggle(memberIds: number[], enabled: boolean) {
@@ -623,9 +638,21 @@ export default function FallbackPage() {
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              {t('models.enabledOfShown', { enabled: visibleEnabledCount, shown: visibleGroups.length })}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p>
+                {t('models.enabledOfShown', { enabled: visibleEnabledCount, shown: visibleGroups.length })}
+                {sort && (
+                  <span className="ml-2 font-mono text-[11px] opacity-80">
+                    • {t('analytics.sortBy', { column: sort.column })} ({sort.direction === 'asc' ? '↑' : '↓'})
+                  </span>
+                )}
+              </p>
+              {sort && (
+                <button onClick={() => setSort(null)} className="underline hover:text-foreground">
+                  {t('models.clearFilters')}
+                </button>
+              )}
+            </div>
 
             {filtersActive && (
               <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -647,7 +674,7 @@ export default function FallbackPage() {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupedDragEnd}>
                 <div className="rounded-2xl border overflow-x-auto">
                   <table className="w-full text-sm">
-                    <ModelTableHead />
+                    <ModelTableHead sort={sort} onToggle={handleToggleSort} />
                     <SortableContext items={renderedGroups.map(g => `grp:${g.key}`)} strategy={verticalListSortingStrategy}>
                       <tbody>
                         {renderedGroups.map(g => (
@@ -661,7 +688,7 @@ export default function FallbackPage() {
             ) : (
               <div className="rounded-2xl border overflow-x-auto">
                 <table className="w-full text-sm">
-                  <ModelTableHead />
+                  <ModelTableHead sort={sort} onToggle={handleToggleSort} />
                   <tbody>
                     {renderedGroups.map(g => (
                       <tr
