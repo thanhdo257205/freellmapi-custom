@@ -12,11 +12,26 @@ export function GoogleSignIn({
 }) {
   const { data } = useExternalAuthMethods()
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(() =>
-    new URLSearchParams(window.location.search).has('auth_error')
-      ? 'Google sign-in failed or was cancelled. For a new account, open your invitation link and try again.'
-      : '',
-  )
+  const [error, setError] = useState(() => {
+    const raw = new URLSearchParams(window.location.search).get('auth_error')
+    if (!raw) return ''
+    if (raw === 'missing_attempt_cookie') {
+      return 'Lỗi phiên đăng nhập: Trình duyệt không gửi được cookie xác thực. Vui lòng thử lại hoặc tắt chặn cookie bên thứ ba.'
+    }
+    if (raw.includes('Google token exchange failed')) {
+      return `Lỗi kết nối Google (${raw}). Vui lòng kiểm tra lại cấu hình Google Client Secret trên Render.`
+    }
+    if (raw === 'A valid invitation is required') {
+      return 'Tài khoản Google này chưa có trong danh sách người dùng và không có mã mời hợp lệ. Vui lòng đăng nhập bằng Mật khẩu hoặc gửi yêu cầu xét duyệt.'
+    }
+    if (raw === 'Existing account cannot be linked by this Google email') {
+      return 'Tài khoản email này đã được liên kết với một tài khoản Google khác.'
+    }
+    if (raw === 'google_failed') {
+      return 'Google sign-in failed or was cancelled. For a new account, open your invitation link and try again.'
+    }
+    return `Đăng nhập Google thất bại: ${raw}`
+  })
   useEffect(() => {
     const url = new URL(window.location.href)
     if (url.searchParams.has('auth_error')) {
