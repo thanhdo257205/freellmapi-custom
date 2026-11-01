@@ -53,6 +53,8 @@ const REMOVE_AURAY_PROVIDER_FILENAME = '20261019_000001_remove_auray_provider.ts
 const KEY_LAST_HEALTHY_AT_FILENAME = '20261020_000001_key_last_healthy_at.ts';
 const CUSTOM_USER_ROLES_AND_KEYS_FILENAME = '20261031_155642_custom_user_roles_and_keys.ts';
 const CUSTOM_EXTERNAL_AUTH_FILENAME = '20261101_020000_custom_external_auth.ts';
+const CUSTOM_REGISTRATION_REQUESTS_FILENAME = '20261101_040000_custom_registration_requests.ts';
+
 
 interface SchemaRow {
   type: string;
@@ -152,6 +154,7 @@ describe('migration round trip', () => {
         KEY_LAST_HEALTHY_AT_FILENAME,
         CUSTOM_USER_ROLES_AND_KEYS_FILENAME,
         CUSTOM_EXTERNAL_AUTH_FILENAME,
+        CUSTOM_REGISTRATION_REQUESTS_FILENAME,
       ]);
     } finally {
       db.close();

@@ -27,6 +27,7 @@ const ADMIN_ONLY = [
   '/api/update',
   '/api/invites',
   '/api/admin/users',
+  '/api/admin/registration-requests',
 ];
 
 let server: Server;
