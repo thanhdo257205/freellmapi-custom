@@ -11,11 +11,11 @@ import { isEmail } from '@/lib/validate'
 import { useI18n } from '@/i18n'
 import { toast } from '@/lib/toast'
 import { useSessionBoundary } from '@/custom/session-state'
+import { GoogleSignIn } from '@/custom/GoogleSignIn'
+import { EmailRecovery, ExternalForgotPassword } from '@/custom/EmailRecovery'
+import { ExternalAuthCallback } from '@/custom/ExternalAuthCallback'
+import { useExternalAuthLanding } from '@/custom/use-external-auth'
 import { RegistrationKeyNotice } from '@/custom/RegistrationKeyNotice'
-import { GoogleSignInButton } from '@/custom/GoogleSignInButton'
-import { EmailRecoveryForm } from '@/custom/EmailRecoveryForm'
-import { ResetPasswordForm } from '@/custom/ResetPasswordForm'
-import type { ExternalAuthMethods } from '../../../shared/external-auth'
 
 // Matches the server rule (routes/auth.ts zod schema).
 const PASSWORD_MIN = 8
@@ -63,7 +63,7 @@ function Centered({ children }: { children: ReactNode }) {
   )
 }
 
-function AuthForm({ mode, onAuthed, externalError }: { mode: 'setup' | 'login'; onAuthed: () => void; externalError?: string | null }) {
+function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () => void }) {
   const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -75,12 +75,6 @@ function AuthForm({ mode, onAuthed, externalError }: { mode: 'setup' | 'login'; 
   const [busy, setBusy] = useState(false)
   const [attempted, setAttempted] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
-  const [useLegacyForgot, setUseLegacyForgot] = useState(false)
-  const { data: methods } = useQuery<ExternalAuthMethods>({
-    queryKey: ['auth-methods'],
-    queryFn: () => apiFetch('/api/auth/methods'),
-    staleTime: 60 * 1000,
-  })
   const [registration, setRegistration] = useState<{ token: string; apiKey: string } | null>(null)
 
   // URL query parameter support: ?invite=... or ?mode=register defaults to registration
@@ -179,22 +173,7 @@ function AuthForm({ mode, onAuthed, externalError }: { mode: 'setup' | 'login'; 
   }
 
   if (showForgot && !isSetup) {
-    if (methods?.emailResetEnabled && !useLegacyForgot) {
-      return (
-        <Centered>
-          <div className="mb-6 flex items-center gap-2">
-            <span className="inline-block size-2 rounded-full bg-foreground" />
-            <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
-          </div>
-          <EmailRecoveryForm
-            onBack={() => { setShowForgot(false); setUseLegacyForgot(false); }}
-            legacyResetAllowed={methods.legacyResetAllowed}
-            onLegacyReset={() => setUseLegacyForgot(true)}
-          />
-        </Centered>
-      )
-    }
-    return <ForgotPasswordForm onBack={() => { setShowForgot(false); setUseLegacyForgot(false); }} onAuthed={onAuthed} />
+    return <ExternalForgotPassword onBack={() => setShowForgot(false)} legacy={<ForgotPasswordForm onBack={() => setShowForgot(false)} onAuthed={onAuthed} />} />
   }
 
   return (
@@ -218,19 +197,6 @@ function AuthForm({ mode, onAuthed, externalError }: { mode: 'setup' | 'login'; 
               ? 'Enter your invite code, email, and password to create an account.'
               : t('auth.loginDescription')}
         </p>
-        {methods?.googleEnabled && !isSetup && (
-          <div className="mb-4 space-y-4">
-            <GoogleSignInButton inviteCode={isRegister ? inviteCode : undefined} />
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or</span>
-              </div>
-            </div>
-          </div>
-        )}
         <form onSubmit={submit} className="space-y-4" noValidate>
           {isRegister && (
             <div className="space-y-1.5">
@@ -294,9 +260,9 @@ function AuthForm({ mode, onAuthed, externalError }: { mode: 'setup' | 'login'; 
           )}
           {/* A server rejection is the one error nobody can predict; it gets the same
               announcement and the same visual weight as the inline field errors. */}
-          {(error || externalError) && (
+          {error && (
             <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {error || externalError}
+              {error}
             </p>
           )}
           <Button type="submit" className="w-full h-10" disabled={busy}>
@@ -306,6 +272,7 @@ function AuthForm({ mode, onAuthed, externalError }: { mode: 'setup' | 'login'; 
               : isSetup ? t('auth.createAccount') : isRegister ? 'Register' : t('auth.signIn')}
           </Button>
         </form>
+        {!isSetup && <GoogleSignIn inviteCode={isRegister ? inviteCode : undefined} requiresInvite={isRegister} />}
         {isLogin && (
           <div className="mt-3 space-y-3">
             <button
@@ -595,31 +562,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const revision = useSessionBoundary()
-  const [resetToken, setResetToken] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    if (window.location.hash.startsWith('#reset_token=')) {
-      const token = window.location.hash.slice('#reset_token='.length)
-      try {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
-      } catch { /* ignore */ }
-      return token
-    }
-    return null
-  })
-  const [googleHandoffResult, setGoogleHandoffResult] = useState<{ token: string; apiKey?: string } | null>(null)
-  const [authError, setAuthError] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('auth_error') === 'google_failed') {
-      try {
-        params.delete('auth_error')
-        const search = params.toString() ? `?${params.toString()}` : ''
-        window.history.replaceState(null, '', window.location.pathname + search)
-      } catch { /* ignore */ }
-      return 'Google sign-in was cancelled or failed. If registering, an invite code is required.'
-    }
-    return null
-  })
+  const { landing, finishLanding } = useExternalAuthLanding(revision)
   const { data, isLoading, isError, refetch } = useQuery<AuthStatus>({
     queryKey: ['auth-status', revision],
     queryFn: () => apiFetch('/api/auth/status'),
@@ -665,32 +608,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     refetch()
   }
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('auth') === 'google') {
-      try {
-        params.delete('auth')
-        const search = params.toString() ? `?${params.toString()}` : ''
-        window.history.replaceState(null, '', window.location.pathname + search)
-      } catch { /* ignore */ }
-
-      apiFetch<{ token: string; email: string; role: 'admin' | 'member'; apiKey?: string }>('/api/auth/google/complete', {
-        method: 'POST',
-      })
-        .then((res) => {
-          if (res.apiKey) {
-            setGoogleHandoffResult({ token: res.token, apiKey: res.apiKey })
-          } else {
-            setToken(res.token)
-            onAuthed()
-          }
-        })
-        .catch((err) => {
-          setAuthError((err as Error).message || 'Google sign-in could not be completed.')
-        })
-    }
-  }, [])
+  if (landing) return <Centered>{landing.kind === 'google'
+    ? <ExternalAuthCallback onComplete={finishLanding} />
+    : <EmailRecovery resetToken={landing.token} onBack={finishLanding} />}</Centered>
 
   if (isLoading) {
     return (
@@ -724,39 +644,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
     return <Centered><p className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-3.5 animate-spin" aria-hidden />{t('auth.loading')}</p></Centered>
   }
-  if (resetToken) {
-    return (
-      <Centered>
-        <div className="mb-6 flex items-center gap-2">
-          <span className="inline-block size-2 rounded-full bg-foreground" />
-          <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
-        </div>
-        <ResetPasswordForm
-          token={resetToken}
-          onSuccess={() => setResetToken(null)}
-          onCancel={() => setResetToken(null)}
-        />
-      </Centered>
-    )
-  }
-
-  if (googleHandoffResult) {
-    return (
-      <Centered>
-        <RegistrationKeyNotice
-          apiKey={googleHandoffResult.apiKey!}
-          onContinue={() => {
-            setToken(googleHandoffResult.token)
-            setGoogleHandoffResult(null)
-            onAuthed()
-          }}
-        />
-      </Centered>
-    )
-  }
-
   if (data.needsSetup) return <AuthForm mode="setup" onAuthed={onAuthed} />
-  if (!data.authenticated) return <AuthForm mode="login" onAuthed={onAuthed} externalError={authError} />
+  if (!data.authenticated) return <AuthForm mode="login" onAuthed={onAuthed} />
 
   return <div key={revision} className="contents">{children}</div>
 }

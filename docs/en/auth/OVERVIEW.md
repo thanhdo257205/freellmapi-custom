@@ -9,6 +9,7 @@ This domain documents the role-based access layer this fork adds on top of upstr
 | [`01-roles-and-invite-registration.md`](01-roles-and-invite-registration.md) | The `users.role` column and how it is assigned, the invite-code lifecycle, `POST /api/auth/register`, and exactly which `/api/*` mounts each role reaches. |
 | [`02-user-api-keys.md`](02-user-api-keys.md) | `sk-flm-…` personal keys: format, storage, mint/revoke endpoints, which surfaces accept them, and what is and is not enforced. |
 | [`03-user-key-storage-design.md`](03-user-key-storage-design.md) | **Proposed, not implemented:** user-owned provider-key storage, envelope encryption, tenant isolation, admin boundaries, migration and release criteria. |
+| [`04-google-login-and-email-recovery.md`](04-google-login-and-email-recovery.md) | Google OAuth, operator Gmail sender setup, account-specific password recovery and deployment validation. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Doc revision history for this domain. |
 
 ## Where the fork's wiring lives
