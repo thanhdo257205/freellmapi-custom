@@ -32,7 +32,8 @@ import { applyModelWeightOverride, getModelWeightOverrides } from './model-weigh
 import { modelsWithOverriddenField, getCatalogModelTombstone } from './model-state.js';
 import { parseBudget } from '../lib/budget.js';
 import { platformDropsResponseFormat } from '../lib/sampling-params.js';
-import { passesContextWindowFloor } from '../lib/min-context-window.js';
+import { passesContextWindowFloor, minContextWindowFloor } from '../lib/min-context-window.js';
+import { withRoutingSettingsScope } from '../db/routing-settings-scope.js';
 import { isUnifyEnabled, getModelGroups, resolveRequestedIdForDispatch } from './model-groups.js';
 import { getActiveProfileId } from './profile-models.js';
 import { getClientContext } from '../lib/client-context.js';
@@ -147,6 +148,8 @@ interface KeyRow {
   proxy_encrypted: string | null;
   proxy_iv: string | null;
   proxy_auth_tag: string | null;
+  monthly_request_cap?: number;
+  monthly_token_cap?: number;
 }
 
 // Chain row joined with the model fields the bandit needs to score it.
@@ -1581,7 +1584,7 @@ function cachedDecrypt(keyId: number, ct: string, iv: string, authTag: string): 
   return plain;
 }
 
-function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: Set<string>, diag?: string[]): RouteResult | null {
+function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: Set<string>, diag?: string[], cachedPlatformKeys?: Map<string, KeyRow[]>): RouteResult | null {
   const db = getDb();
   const label = `${entry.platform}/${entry.model_id}`;
 
@@ -1591,9 +1594,13 @@ function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: 
   }
   const provider = getProvider(entry.platform as Platform)!;
 
-  const allKeys = db.prepare(
-    "SELECT * FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown')"
-  ).all(entry.platform) as KeyRow[];
+  let allKeys = cachedPlatformKeys?.get(entry.platform);
+  if (!allKeys) {
+    allKeys = db.prepare(
+      "SELECT * FROM api_keys WHERE platform = ? AND enabled = 1 AND status IN ('healthy', 'unknown')"
+    ).all(entry.platform) as KeyRow[];
+    cachedPlatformKeys?.set(entry.platform, allKeys);
+  }
   if (allKeys.length === 0) {
     diag?.push(`${label}: no enabled+healthy key for platform`);
     return null;
@@ -1676,7 +1683,11 @@ function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: 
     // current UTC month is not a candidate — same skip semantics as the daily
     // gates above. The Retry-After (next-month boundary) surfaces through the
     // fallback exhaustion path rather than blocking here.
-    if (!checkMonthlyBudget(key.id, estimatedTokens).allowed) { note('monthly-budget-cap'); continue; }
+    const knownCaps =
+      key.monthly_request_cap !== undefined && key.monthly_token_cap !== undefined
+        ? { requestCap: key.monthly_request_cap ?? 0, tokenCap: key.monthly_token_cap ?? 0 }
+        : undefined;
+    if (!checkMonthlyBudget(key.id, estimatedTokens, undefined, knownCaps).allowed) { note('monthly-budget-cap'); continue; }
 
     let decryptedKey: string;
     try {
@@ -1697,7 +1708,7 @@ function selectKeyForModel(entry: ChainRow, estimatedTokens: number, skipKeys?: 
     // Taken only once the key has cleared every gate and is definitely being
     // returned, so a rejected candidate never consumes concurrency budget.
     const proxyUrl = decryptProxyUrl(key);
-    const budget = reserveMonthlyBudget(key.id, estimatedTokens);
+    const budget = reserveMonthlyBudget(key.id, estimatedTokens, knownCaps);
     if (!budget.allowed) { note('monthly-budget-cap'); continue; }
     const leaseId = acquireLease(entry.platform, entry.model_id, key.id, estimatedTokens);
     return {
@@ -1870,8 +1881,8 @@ export const CONTEXT_WINDOW_SAFETY_FACTOR = 1.25;
  * comparison /v1/models publishes and the soft-preference fallback tier.
  * The operator's min-context-window floor applies here too: the fallback tier
  * must not reintroduce a model the floor excluded from the main chain. */
-export function fitsContextWindowStrict(contextWindow: number | null | undefined, estimatedTokens: number): boolean {
-  if (!passesContextWindowFloor(contextWindow)) return false;
+export function fitsContextWindowStrict(contextWindow: number | null | undefined, estimatedTokens: number, floor?: number | null): boolean {
+  if (!passesContextWindowFloor(contextWindow, floor)) return false;
   return contextWindow == null || estimatedTokens <= contextWindow;
 }
 
@@ -1882,8 +1893,8 @@ export function fitsContextWindowStrict(contextWindow: number | null | undefined
  * the operator's min-context-window floor (lib/min-context-window.ts): a model
  * below the configured preset is excluded from every chain, while an unknown
  * window (null) always passes. */
-export function fitsContextWindow(_platform: string, contextWindow: number | null | undefined, estimatedTokens: number, exactOutputReserve = 0): boolean {
-  if (!passesContextWindowFloor(contextWindow)) return false;
+export function fitsContextWindow(_platform: string, contextWindow: number | null | undefined, estimatedTokens: number, exactOutputReserve = 0, floor?: number | null): boolean {
+  if (!passesContextWindowFloor(contextWindow, floor)) return false;
   if (contextWindow == null) return true;
   // Raw advertised comparison first — the margin can only shrink eligibility.
   if (estimatedTokens > contextWindow) return false;
@@ -2056,11 +2067,12 @@ export function getOrderedFusionChain(estimatedTokens: number, exactOutputReserv
   // rather than handing back an empty chain — a request packed to the
   // advertised window keeps its one attempt (the mid-chain context_too_large
   // 400 is classified and retried downstream).
+  const floor = minContextWindowFloor();
   const passesContextGate = (e: ChainRow, allowMarginViolators: boolean) => {
     // A null context_window means "unknown", not "zero": same convention the
     // auto-router uses, so an unspecified window is never itself a reason to skip.
-    if (fitsContextWindow(e.platform, e.context_window, estimatedTokens, exactOutputReserve)) return true;
-    return allowMarginViolators && fitsContextWindowStrict(e.context_window, estimatedTokens);
+    if (fitsContextWindow(e.platform, e.context_window, estimatedTokens, exactOutputReserve, floor)) return true;
+    return allowMarginViolators && fitsContextWindowStrict(e.context_window, estimatedTokens, floor);
   };
   const servableFilter = (allowMarginViolators: boolean) => chain.filter(e => {
     if (!passesContextGate(e, allowMarginViolators)) return false;
@@ -2184,68 +2196,71 @@ export function resolveFusionCandidate(modelId: string): FusionCandidate | null 
  *   #1628); leave unset everywhere else.
  */
 export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, preferredModelDbId?: number, requireVision = false, requireTools = false, skipModels?: Set<number>, prefetchedChain?: ChainRow[], requireStructured = false, skipPlatforms?: Set<string>, exactOutputReserve = 0, task?: 'code' | 'chat', strategyOverride?: PresetStrategy): RouteResult {
-  const db = getDb();
+  return withRoutingSettingsScope(() => {
+    const db = getDb();
+    const floor = minContextWindowFloor();
+    const cachedPlatformKeys = new Map<string, KeyRow[]>();
 
-  // The alias's axis wins for this request (#1628): scoring the prefetched
-  // chain under the global strategy silently discarded what `auto:smart` /
-  // `auto:fast` asked for. Absent an override, whatever this request routes
-  // with governs — the operator's setting, or the preset the 'decision' model
-  // picked (#1354).
-  const strategy = strategyOverride ?? effectiveRoutingStrategy();
-  if (strategy !== 'priority') refreshStatsCache(db);
+    // The alias's axis wins for this request (#1628): scoring the prefetched
+    // chain under the global strategy silently discarded what `auto:smart` /
+    // `auto:fast` asked for. Absent an override, whatever this request routes
+    // with governs — the operator's setting, or the preset the 'decision' model
+    // picked (#1354).
+    const strategy = strategyOverride ?? effectiveRoutingStrategy();
+    if (strategy !== 'priority') refreshStatsCache(db);
 
-  const chain = (prefetchedChain ?? getActiveChain(db)).filter(e => e.enabled);
+    const chain = (prefetchedChain ?? getActiveChain(db)).filter(e => e.enabled);
 
-  const sortedChain = orderChain(chain, strategy, true, task);
+    const sortedChain = orderChain(chain, strategy, true, task);
 
-  // Exploration toggle (#685/#707 follow-up): when enabled, give a model with
-  // no reliability/speed samples a guaranteed chance to be tried, so it stops
-  // losing every bandit draw to prior-heavy rivals. With EXPLORE_CHANCE
-  // probability, pick one unmeasured model uniformly and try it first; if it
-  // fails, the loop falls through to the scored order as usual. Only for
-  // bandit strategies — Manual is the operator's explicit order.
-  // Candidates the main loop would immediately reject for THIS request are
-  // excluded up front (ruled-out models plus the request-level capability
-  // gates: vision/tools/structured output/context window): promoting a model
-  // that can't serve the request ahead of capable ones would just get it
-  // skipped a moment later (e.g. an image request must never randomly probe a
-  // text-only model).
-  // While the gateway is in degraded mode (#904) exploration is skipped
-  // entirely: probing unmeasured models during a fleet-wide outage just burns
-  // retry budget on the same dead providers, and the scored order of known
-  // survivors is the only thing worth trying.
-  if (strategy !== 'priority' && getExploreEnabled() && !isDegraded() && Math.random() < EXPLORE_CHANCE) {
-    // A model the operator zeroed out via MODEL_ROUTING_OVERRIDES never wins a
-    // bandit draw, so it would stay under EXPLORE_MIN_SAMPLES forever and become
-    // a perpetual probe target — the explicit ban outranks exploration.
-    const overrides = getModelWeightOverrides();
-    const unmeasured = sortedChain.filter(e => {
-      if (overrides.get(e.model_id) === 0) return false;
-      const stats = statsCache?.get(modelStatsKey(e.platform, e.model_id, e.endpoint_scope));
-      if ((stats?.successes ?? 0) + (stats?.failures ?? 0) >= EXPLORE_MIN_SAMPLES) return false;
-      // Mirror the main loop's gates below so exploration only samples
-      // candidates that can actually serve this request.
-      if (skipModels?.has(e.model_db_id)) return false;
-      if (skipPlatforms?.has(e.platform)) return false;
-      if (requireVision && !e.supports_vision) return false;
-      if (requireTools && !e.supports_tools) return false;
-      // Never spend the exploration slot on a model that keeps rejecting tool
-      // requests (#1230); it stays reachable at the back of the main walk.
-      if (requireTools && isToolBenched(e.platform, e.model_id, e.endpoint_scope)) return false;
-      if (requireStructured && platformDropsResponseFormat(e.platform)) return false;
-      if (!fitsContextWindow(e.platform, e.context_window, estimatedTokens, exactOutputReserve)) return false;
-      if (e.tpm_limit != null && estimatedTokens > e.tpm_limit) return false;
-      return true;
-    });
-    if (unmeasured.length > 0) {
-      const probe = unmeasured[Math.floor(Math.random() * unmeasured.length)];
-      const idx = sortedChain.findIndex(e => e.model_db_id === probe.model_db_id);
-      if (idx > 0) {
-        const [probeRow] = sortedChain.splice(idx, 1);
-        sortedChain.unshift(probeRow);
+    // Exploration toggle (#685/#707 follow-up): when enabled, give a model with
+    // no reliability/speed samples a guaranteed chance to be tried, so it stops
+    // losing every bandit draw to prior-heavy rivals. With EXPLORE_CHANCE
+    // probability, pick one unmeasured model uniformly and try it first; if it
+    // fails, the loop falls through to the scored order as usual. Only for
+    // bandit strategies — Manual is the operator's explicit order.
+    // Candidates the main loop would immediately reject for THIS request are
+    // excluded up front (ruled-out models plus the request-level capability
+    // gates: vision/tools/structured output/context window): promoting a model
+    // that can't serve the request ahead of capable ones would just get it
+    // skipped a moment later (e.g. an image request must never randomly probe a
+    // text-only model).
+    // While the gateway is in degraded mode (#904) exploration is skipped
+    // entirely: probing unmeasured models during a fleet-wide outage just burns
+    // retry budget on the same dead providers, and the scored order of known
+    // survivors is the only thing worth trying.
+    if (strategy !== 'priority' && getExploreEnabled() && !isDegraded() && Math.random() < EXPLORE_CHANCE) {
+      // A model the operator zeroed out via MODEL_ROUTING_OVERRIDES never wins a
+      // bandit draw, so it would stay under EXPLORE_MIN_SAMPLES forever and become
+      // a perpetual probe target — the explicit ban outranks exploration.
+      const overrides = getModelWeightOverrides();
+      const unmeasured = sortedChain.filter(e => {
+        if (overrides.get(e.model_id) === 0) return false;
+        const stats = statsCache?.get(modelStatsKey(e.platform, e.model_id, e.endpoint_scope));
+        if ((stats?.successes ?? 0) + (stats?.failures ?? 0) >= EXPLORE_MIN_SAMPLES) return false;
+        // Mirror the main loop's gates below so exploration only samples
+        // candidates that can actually serve this request.
+        if (skipModels?.has(e.model_db_id)) return false;
+        if (skipPlatforms?.has(e.platform)) return false;
+        if (requireVision && !e.supports_vision) return false;
+        if (requireTools && !e.supports_tools) return false;
+        // Never spend the exploration slot on a model that keeps rejecting tool
+        // requests (#1230); it stays reachable at the back of the main walk.
+        if (requireTools && isToolBenched(e.platform, e.model_id, e.endpoint_scope)) return false;
+        if (requireStructured && platformDropsResponseFormat(e.platform)) return false;
+        if (!fitsContextWindow(e.platform, e.context_window, estimatedTokens, exactOutputReserve, floor)) return false;
+        if (e.tpm_limit != null && estimatedTokens > e.tpm_limit) return false;
+        return true;
+      });
+      if (unmeasured.length > 0) {
+        const probe = unmeasured[Math.floor(Math.random() * unmeasured.length)];
+        const idx = sortedChain.findIndex(e => e.model_db_id === probe.model_db_id);
+        if (idx > 0) {
+          const [probeRow] = sortedChain.splice(idx, 1);
+          sortedChain.unshift(probeRow);
+        }
       }
     }
-  }
 
   // Sticky session / Explicit pinning: move preferred model to front of chain
   if (preferredModelDbId) {
@@ -2336,7 +2351,7 @@ export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, pre
       toolDeferred.push(e);
       continue;
     }
-    (fitsContextWindow(e.platform, e.context_window, estimatedTokens, exactOutputReserve) ? servingChain : marginDeferred).push(e);
+    (fitsContextWindow(e.platform, e.context_window, estimatedTokens, exactOutputReserve, floor) ? servingChain : marginDeferred).push(e);
   }
   servingChain.push(...marginDeferred, ...toolDeferred);
 
@@ -2385,7 +2400,7 @@ export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, pre
     // put on cooldown — so this is a fast-path, not the only guard. If every
     // model is too small, the loop falls through and the caller gets the normal
     // "all models exhausted" error rather than a wasted sweep.
-    if (!fitsContextWindowStrict(entry.context_window, estimatedTokens)) {
+    if (!fitsContextWindowStrict(entry.context_window, estimatedTokens, floor)) {
       // Keep the `< estimated` substring — summarizeExhaustion buckets prompt
       // overflow off it. Emit the EFFECTIVE number so the line doesn't read as
       // false (#956 review): e.g. `context 131072 < estimated 106000 x1.25 = 132500`.
@@ -2406,7 +2421,7 @@ export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, pre
     // first usable key's RouteResult, or null when the model has no key that
     // can serve right now — in which case we fall through to the next model in
     // the sorted chain for THIS request (no explicit penalty needed).
-    const route = selectKeyForModel(entry, estimatedTokens, skipKeys, diag);
+    const route = selectKeyForModel(entry, estimatedTokens, skipKeys, diag, cachedPlatformKeys);
     if (route) return route;
   }
 
@@ -2417,6 +2432,7 @@ export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, pre
     429,
     keylessLine ? [...diag, keylessLine] : diag,
   );
+  });
 }
 
 /**

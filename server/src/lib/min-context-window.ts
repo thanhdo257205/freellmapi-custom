@@ -46,9 +46,9 @@ export function minContextWindowFloor(): number | null {
 
 /** True when a model with this advertised window may serve at all under the
  *  configured floor. Unknown windows (null/undefined) always pass. */
-export function passesContextWindowFloor(contextWindow: number | null | undefined): boolean {
-  const floor = minContextWindowFloor();
-  if (floor == null) return true;
+export function passesContextWindowFloor(contextWindow: number | null | undefined, floor?: number | null): boolean {
+  const effectiveFloor = floor !== undefined ? floor : minContextWindowFloor();
+  if (effectiveFloor == null) return true;
   if (contextWindow == null) return true;
-  return contextWindow >= floor;
+  return contextWindow >= effectiveFloor;
 }
