@@ -44,7 +44,6 @@ import { isToolBenched } from '../lib/tool-capability.js';
 import { parseModelScope, scopeAllows } from '../lib/model-scope.js';
 import { getKeyQuotaHeadroom, inferQuotaPoolKey } from './provider-quota.js';
 import {
-  getUsableKeysByPlatform,
   getUsableKeysForPlatform,
   countUsableKeysByPlatform,
   getAllUsableKeys,
