@@ -13,8 +13,9 @@ import {
 import { listAllUsersUsage, setUserRpmLimit } from '../services/user-quotas.js';
 import type { SessionUser } from '../services/auth.js';
 
-// Admin user management. Mounted under /api/admin/users, which is in
-// ADMIN_ONLY_PREFIXES, so a member session never reaches any handler here.
+// Admin user management. Mounted behind `requirePermission('manage_users')` in
+// custom/register.ts, so a session without that permission never reaches a
+// handler here.
 
 export const adminUsersRouter = Router();
 
