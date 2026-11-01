@@ -14,6 +14,7 @@ import type { Scheduler } from '../lib/scheduler.js';
 import { sanitizeProviderErrorMessage } from '../lib/error-redaction.js';
 import { providerLog } from '../lib/server-logs.js';
 import { triggerBuiltinModelDiscovery } from './builtin-model-discovery.js';
+import { invalidateKeyCache } from './key-cache.js';
 
 const DEFAULT_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 // Floor of 60s: a misconfigured tiny interval turns the health pass into a
@@ -139,6 +140,7 @@ function recordTransportFailure(keyId: number, platform: string | undefined): bo
     .prepare("UPDATE api_keys SET status = 'error' WHERE id = ? AND enabled = 1 AND status IN ('healthy', 'unknown')")
     .run(keyId);
   if (res.changes > 0) {
+    invalidateKeyCache();
     providerLog(
       'warn',
       `[Health] Key ${keyId} (${platform}) parked as 'error' after ${count} consecutive transport failures`,
@@ -184,6 +186,7 @@ function recordInvalidFailure(keyId: number, platform?: string): void {
 
   if (count >= CONSECUTIVE_FAILURES_TO_DISABLE) {
     getDb().prepare('UPDATE api_keys SET enabled = 0 WHERE id = ?').run(keyId);
+    invalidateKeyCache();
     // providerLog, not console.log: losing a key is the event an operator is
     // most likely to be looking for after the fact, so it goes to the dashboard
     // log viewer (where warn/error survive a restart) as well as to stdout —
@@ -316,6 +319,7 @@ export async function checkKeyHealth(keyId: number): Promise<KeyStatus> {
       ? "UPDATE api_keys SET status = ?, last_health_error = ?, last_checked_at = datetime('now'), last_healthy_at = datetime('now') WHERE id = ?"
       : "UPDATE api_keys SET status = ?, last_health_error = ?, last_checked_at = datetime('now') WHERE id = ?")
       .run(status, lastError, keyId);
+    invalidateKeyCache();
 
     if (isValid) {
       failureCount.delete(keyId);
@@ -472,9 +476,10 @@ export function markKeyHealthyFromRequest(keyId: number): void {
         .prepare("UPDATE api_keys SET last_healthy_at = datetime('now') WHERE id = ?")
         .run(keyId);
     }
-    getDb()
+    const res = getDb()
       .prepare("UPDATE api_keys SET status = 'healthy', last_health_error = NULL WHERE id = ? AND status IN ('error', 'unknown')")
       .run(keyId);
+    if (res.changes > 0) invalidateKeyCache();
     failureCount.delete(keyId);
     // #1510: a served request is the strongest reachability evidence there is —
     // it also ends any transport-error streak, parked or not.
