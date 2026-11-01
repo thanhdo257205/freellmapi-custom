@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { Loader2, CheckCircle2 } from 'lucide-react'
 import { apiFetch, setToken, UNAUTHORIZED_EVENT, type ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { FieldError } from '@/components/ui/field-error'
@@ -91,6 +91,9 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
 
   const [authView, setAuthView] = useState<'login' | 'register'>(registerParam ? 'register' : 'login')
   const [inviteCode, setInviteCode] = useState(inviteParam)
+  const [registerType, setRegisterType] = useState<'invite' | 'request'>('invite')
+  const [requestNote, setRequestNote] = useState('')
+  const [requestSubmittedEmail, setRequestSubmittedEmail] = useState<string | null>(null)
 
   const isSetup = mode === 'setup'
   const isRegister = !isSetup && authView === 'register'
@@ -102,7 +105,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
   // the desktop app's hidden account is `desktop@localhost` (no TLD), which
   // the login route accepts on purpose (server/src/routes/auth.ts), so a
   // browser tab must be able to submit it after a password reset (#1250).
-  const inviteError = isRegister && !inviteCode.trim() ? 'Invite code is required' : null
+  const inviteError = isRegister && registerType === 'invite' && !inviteCode.trim() ? 'Invite code is required' : null
   const emailError = !email.trim()
     ? t('validation.required')
     : (isSetup || isRegister) && !isEmail(email)
@@ -128,6 +131,15 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
     setError('')
     try {
       if (isRegister) {
+        if (registerType === 'request') {
+          await apiFetch<{ success: boolean; message: string }>('/api/auth/request-access', {
+            method: 'POST',
+            body: JSON.stringify({ email: email.trim(), password, note: requestNote.trim() || undefined }),
+          })
+          setRequestSubmittedEmail(email.trim())
+          return
+        }
+
         const res = await apiFetch<{ token: string; email: string; role: string; apiKey?: string }>('/api/auth/register', {
           method: 'POST',
           body: JSON.stringify({ email: email.trim(), password, inviteCode: inviteCode.trim() }),
@@ -164,6 +176,39 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
     }
   }
 
+  if (requestSubmittedEmail) {
+    return (
+      <Centered>
+        <div className="mb-6 flex items-center gap-2">
+          <span className="inline-block size-2 rounded-full bg-foreground" />
+          <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
+        </div>
+        <div className="rounded-3xl border bg-card p-6 text-center space-y-4">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-6" />
+          </div>
+          <h1 className="text-lg font-semibold tracking-tight">Yêu cầu đã được gửi!</h1>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Yêu cầu đăng ký tài khoản cho <strong className="text-foreground">{requestSubmittedEmail}</strong> đã được gửi tới Quản trị viên (Admin).
+          </p>
+          <div className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground text-left leading-relaxed">
+            💡 Sau khi Admin phê duyệt, bạn chỉ cần quay lại trang đăng nhập và đăng nhập bình thường bằng Gmail và mật khẩu bạn vừa đặt.
+          </div>
+          <Button
+            onClick={() => {
+              setRequestSubmittedEmail(null)
+              setAuthView('login')
+              setError('')
+            }}
+            className="w-full h-10"
+          >
+            Quay lại Đăng nhập
+          </Button>
+        </div>
+      </Centered>
+    )
+  }
+
   if (registration) {
     return <Centered><RegistrationKeyNotice apiKey={registration.apiKey} onContinue={() => {
       setToken(registration.token)
@@ -187,18 +232,48 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           {isSetup
             ? t('auth.createYourAccount')
             : isRegister
-              ? 'Register with invite code'
+              ? (registerType === 'invite' ? 'Register with invite code' : 'Request account access')
               : t('auth.signIn')}
         </h1>
         <p className="text-sm text-muted-foreground mt-1.5 mb-6">
           {isSetup
             ? t('auth.setupDescription')
             : isRegister
-              ? 'Enter your invite code, email, and password to create an account.'
+              ? (registerType === 'invite'
+                  ? 'Enter your invite code, email, and password to create an account.'
+                  : 'Enter your Gmail and password to submit an access request to the admin.')
               : t('auth.loginDescription')}
         </p>
+
+        {isRegister && (
+          <div className="mb-4 grid grid-cols-2 rounded-xl border bg-muted/40 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => { setRegisterType('invite'); setError(''); }}
+              className={`rounded-lg py-1.5 font-medium transition-all ${
+                registerType === 'invite'
+                  ? 'bg-background text-foreground shadow-sm font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Mã mời (Invite code)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setRegisterType('request'); setError(''); }}
+              className={`rounded-lg py-1.5 font-medium transition-all ${
+                registerType === 'request'
+                  ? 'bg-background text-foreground shadow-sm font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Yêu cầu xét duyệt
+            </button>
+          </div>
+        )}
+
         <form onSubmit={submit} className="space-y-4" noValidate>
-          {isRegister && (
+          {isRegister && registerType === 'invite' && (
             <div className="space-y-1.5">
               <Label className="text-xs" htmlFor="auth-invite-code">Invite code</Label>
               <Input
@@ -221,7 +296,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
               id="auth-email"
               type="email"
               autoComplete="username"
-              autoFocus={!isRegister}
+              autoFocus={!isRegister || registerType === 'request'}
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder={t('auth.emailPlaceholder')}
@@ -243,6 +318,19 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
             />
             {attempted && <FieldError id="auth-password-error" error={passwordError} />}
           </div>
+          {isRegister && registerType === 'request' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs" htmlFor="auth-request-note">Ghi chú cho Admin (tùy chọn)</Label>
+              <Input
+                id="auth-request-note"
+                type="text"
+                autoComplete="off"
+                value={requestNote}
+                onChange={e => setRequestNote(e.target.value)}
+                placeholder="Ví dụ: Sinh viên, lập trình viên, nghiên cứu AI..."
+              />
+            </div>
+          )}
           {isSetup && codeRequired && (
             <div className="space-y-1.5">
               <Label className="text-xs" htmlFor="auth-setup-code">{t('auth.setupCode')}</Label>
@@ -261,18 +349,33 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           {/* A server rejection is the one error nobody can predict; it gets the same
               announcement and the same visual weight as the inline field errors. */}
           {error && (
-            <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <div
+              role="alert"
+              className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+                error.includes('chờ Admin phê duyệt') || error.includes('pending approval')
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  : 'border-destructive/40 bg-destructive/10 text-destructive'
+              }`}
+            >
               {error}
-            </p>
+            </div>
           )}
           <Button type="submit" className="w-full h-10" disabled={busy}>
             {busy && <Loader2 className="animate-spin" aria-hidden />}
             {busy
-              ? (isSetup ? t('auth.creating') : isRegister ? 'Creating account…' : t('auth.signingIn'))
-              : isSetup ? t('auth.createAccount') : isRegister ? 'Register' : t('auth.signIn')}
+              ? (isSetup
+                  ? t('auth.creating')
+                  : isRegister
+                    ? (registerType === 'request' ? 'Đang gửi yêu cầu…' : 'Creating account…')
+                    : t('auth.signingIn'))
+              : isSetup
+                ? t('auth.createAccount')
+                : isRegister
+                  ? (registerType === 'request' ? 'Gửi yêu cầu xét duyệt' : 'Register')
+                  : t('auth.signIn')}
           </Button>
         </form>
-        {!isSetup && <GoogleSignIn inviteCode={isRegister ? inviteCode : undefined} requiresInvite={isRegister} />}
+        {!isSetup && <GoogleSignIn inviteCode={isRegister && registerType === 'invite' ? inviteCode : undefined} requiresInvite={isRegister && registerType === 'invite'} />}
         {isLogin && (
           <div className="mt-3 space-y-3">
             <button
@@ -288,7 +391,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
                 onClick={() => { setAuthView('register'); setError(''); setAttempted(false) }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                Have an invite code? <span className="font-medium text-foreground underline underline-offset-2">Register here</span>
+                Chưa có tài khoản? <span className="font-medium text-foreground underline underline-offset-2">Đăng ký / Xin cấp quyền</span>
               </button>
             </div>
           </div>
