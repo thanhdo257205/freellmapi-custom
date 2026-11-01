@@ -14,11 +14,19 @@ export function GoogleSignIn({
   const { data } = useExternalAuthMethods()
   const { t } = useI18n()
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(() =>
-    new URLSearchParams(window.location.search).has('auth_error')
-      ? t('auth.googleError')
-      : '',
-  )
+  const [error, setError] = useState(() => {
+    const raw = new URLSearchParams(window.location.search).get('auth_error')
+    if (!raw) return ''
+    if (raw === 'missing_attempt_cookie') return t('auth.googleCookieError')
+    if (raw.includes('Google token exchange failed'))
+      return t('auth.googleTokenError', { detail: raw })
+    if (raw === 'A valid invitation is required')
+      return t('auth.googleInviteRequiredError')
+    if (raw === 'Existing account cannot be linked by this Google email')
+      return t('auth.googleLinkConflictError')
+    if (raw === 'google_failed') return t('auth.googleError')
+    return t('auth.googleFailedDetail', { detail: raw })
+  })
   useEffect(() => {
     const url = new URL(window.location.href)
     if (url.searchParams.has('auth_error')) {
