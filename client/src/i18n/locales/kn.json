@@ -144,7 +144,9 @@
     "failures": "ವೈಫಲ್ಯಗಳು",
     "dismiss": "ವಜಾಗೊಳಿಸಿ",
     "status": "ಸ್ಥಿತಿ",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",

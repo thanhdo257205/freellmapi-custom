@@ -144,7 +144,9 @@
     "failures": "Awọn ikuna",
     "dismiss": "Yọọ kuro",
     "status": "Ipo",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Eto",

@@ -144,7 +144,9 @@
     "failures": "ਅਸਫਲਤਾਵਾਂ",
     "dismiss": "ਖਾਰਜ ਕਰੋ",
     "status": "ਸਥਿਤੀ",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "ਸੈਟਿੰਗਾਂ",

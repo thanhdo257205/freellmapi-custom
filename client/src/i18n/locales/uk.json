@@ -144,7 +144,9 @@
     "failures": "Невдачі",
     "dismiss": "Відхилити",
     "status": "Статус",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Налаштування",

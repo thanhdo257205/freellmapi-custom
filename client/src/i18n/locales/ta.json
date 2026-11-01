@@ -144,7 +144,9 @@
     "failures": "தோல்விகள்",
     "dismiss": "நிராகரி",
     "status": "நிலை",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "அமைப்புகள்",

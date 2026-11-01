@@ -144,7 +144,9 @@
     "failures": "כישלונות",
     "dismiss": "דחה",
     "status": "סטטוס",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "הגדרות",

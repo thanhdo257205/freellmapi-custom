@@ -144,7 +144,9 @@
     "failures": "ความล้มเหลว",
     "dismiss": "ยกเลิก",
     "status": "สถานะ",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "การตั้งค่า",

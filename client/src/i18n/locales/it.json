@@ -144,7 +144,9 @@
     "failures": "Fallimenti",
     "dismiss": "Chiudi",
     "status": "Stato",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Impostazioni",

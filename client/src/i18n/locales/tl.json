@@ -144,7 +144,9 @@
     "failures": "Mga Kabiguan",
     "dismiss": "I-dismiss",
     "status": "Kalagayan",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Mga Setting",

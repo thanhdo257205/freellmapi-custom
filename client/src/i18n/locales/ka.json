@@ -144,7 +144,9 @@
     "failures": "წარუმატებლობები",
     "dismiss": "გაუქმება",
     "status": "სტატუსი",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "პარამეტრები",
