@@ -59,7 +59,7 @@ The scope is deliberately narrow. If a feature isn't in the README's feature lis
 - **`n > 1`** (multiple completions per request)
 - **Per-user billing / multi-tenant auth** — single-user by design
 
-> **Fork note:** this fork adds multi-user *auth* (admin/member roles, invite-only registration, per-user `sk-flm-…` keys) but still has no per-user billing, quota, or usage attribution. See [../auth/OVERVIEW.md](../auth/OVERVIEW.md).
+> **Fork note:** this fork adds multi-user *auth* (admin/member roles with granular permission grants, invite-code and operator-approved registration, per-user `sk-flm-…` keys with an RPM cap and a monthly request count) but still has no billing and no per-user token or cost attribution. See [../auth/OVERVIEW.md](../auth/OVERVIEW.md).
 
 PRs that add any of these are very welcome. See [Contributing](../../../README.md#contributing).
 
