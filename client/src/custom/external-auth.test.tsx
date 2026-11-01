@@ -13,6 +13,7 @@ let client: QueryClient
 let calls: { path: string; body: Record<string, string> }[]
 let methodsFailureStatus = 0
 let callbackResult: Record<string, string>
+let loginFailure: { status: number; type: string; message: string } | null = null
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' },
@@ -50,13 +51,13 @@ async function submit() {
   )
   await flush()
 }
-async function mount(url = '/') {
+async function mount(url = '/', locale: 'en' | 'vi' = 'en') {
   window.history.replaceState({}, '', url)
   act(() =>
     root.render(
       <StrictMode>
         <QueryClientProvider client={client}>
-          <I18nProvider initialLocale="en">
+          <I18nProvider initialLocale={locale}>
             <AuthGate>
               <div>signed-in dashboard</div>
             </AuthGate>
@@ -66,6 +67,13 @@ async function mount(url = '/') {
     ),
   )
   await flush()
+}
+
+// Non-English dictionaries are lazy-loaded, and the first load also pays for
+// Vite's on-demand transform, so a fixed number of flushes can lose the race
+// and leave the English fallback on screen.
+async function until(found: () => boolean) {
+  for (let i = 0; i < 50 && !found(); i++) await flush()
 }
 beforeAll(() => {
   ;(
@@ -79,6 +87,7 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   calls = []
   methodsFailureStatus = 0
+  loginFailure = null
   callbackResult = {
     token: 'google-session',
     role: 'member',
@@ -106,6 +115,12 @@ beforeEach(() => {
         })
       if (path.endsWith('/api/auth/google/complete'))
         return json(callbackResult)
+      if (
+        loginFailure &&
+        (path.endsWith('/api/auth/login') ||
+          path.endsWith('/api/auth/request-access'))
+      )
+        return json({ error: loginFailure }, loginFailure.status)
       return json({ success: true })
     }),
   )
@@ -210,4 +225,120 @@ it('opens a recovery link when the browser navigates only to a new fragment', as
   await flush()
   expect(container.textContent).toContain('Choose a new password')
   expect(window.location.hash).toBe('')
+})
+
+// The register view shipped with English headings and buttons next to
+// Vietnamese tabs, so every string on the card has to follow one locale.
+it('renders the whole register view in the selected locale', async () => {
+  await mount('/?mode=register', 'vi')
+  await until(() =>
+    container.textContent!.includes('Đăng ký bằng mã mời'),
+  )
+  const text = container.textContent!
+  expect(text).toContain('Đăng ký bằng mã mời')
+  expect(text).toContain('Nhập mã mời, email và mật khẩu để tạo tài khoản.')
+  expect(text).toContain('Mã mời')
+  expect(text).toContain('Tiếp tục với Google')
+  expect(text).toContain('Đã có tài khoản?')
+  expect(text).not.toContain('Invite code')
+  expect(text).not.toContain('Register with invite code')
+  expect(text).not.toContain('Continue with Google')
+  expect(text).not.toContain('Already have an account')
+
+  await click('Yêu cầu xét duyệt')
+  const requestText = container.textContent!
+  expect(requestText).toContain('Xin cấp quyền truy cập')
+  expect(requestText).toContain('Ghi chú cho Quản trị viên (tùy chọn)')
+  expect(requestText).toContain('Gửi yêu cầu xét duyệt')
+  expect(
+    container.querySelector<HTMLInputElement>('#auth-request-note')!.placeholder,
+  ).toBe('Ví dụ: Sinh viên, lập trình viên, nghiên cứu AI…')
+  expect(requestText).not.toContain('Note for the admin')
+  expect(requestText).not.toContain('Request account access')
+})
+
+// The approval notices come from the server in Vietnamese; the card must show
+// them in the reader's language and keep the "waiting" styling.
+it('shows a pending account in the reader language instead of the server language', async () => {
+  loginFailure = {
+    status: 403,
+    type: 'registration_pending',
+    message: 'Tài khoản của bạn đang chờ Admin phê duyệt. Vui lòng quay lại sau!',
+  }
+  await mount()
+  type('#auth-email', 'member@gmail.com')
+  type('#auth-password', 'Password123')
+  await submit()
+  const alert = container.querySelector('[role=alert]')!
+  expect(alert.textContent).toBe(
+    'Your account is waiting for admin approval. Please check back later.',
+  )
+  expect(alert.className).toContain('amber')
+})
+
+it('localizes a duplicate access request and keeps it non-destructive', async () => {
+  loginFailure = {
+    status: 409,
+    type: 'request_already_pending',
+    message: 'Yêu cầu đăng ký cho email này đang chờ Admin phê duyệt.',
+  }
+  await mount()
+  await click("Don't have an account? Sign up / Request access")
+  await click('Request review')
+  type('#auth-email', 'member@gmail.com')
+  type('#auth-password', 'Password123')
+  await submit()
+  expect(calls.some((call) => call.path === '/api/auth/request-access')).toBe(
+    true,
+  )
+  const alert = container.querySelector('[role=alert]')!
+  expect(alert.textContent).toBe(
+    'A registration request for this email is already waiting for approval.',
+  )
+  expect(alert.className).toContain('amber')
+})
+
+// The callback diagnostics are per-reader text like any other label.
+it('reports a failed Google sign-in in the reader language', async () => {
+  await mount('/?auth_error=missing_attempt_cookie')
+  expect(container.textContent).toContain('Sign-in session error')
+  expect(container.textContent).not.toContain('Lỗi phiên đăng nhập')
+})
+
+it('reports a failed Google sign-in in Vietnamese for a vi reader', async () => {
+  await mount('/?auth_error=missing_attempt_cookie', 'vi')
+  await until(() => container.textContent!.includes('Lỗi phiên đăng nhập'))
+  expect(container.textContent).toContain('Lỗi phiên đăng nhập')
+})
+
+it('keeps the token-exchange detail while translating its wrapper', async () => {
+  await mount('/?auth_error=Google%20token%20exchange%20failed%3A%20invalid_grant')
+  expect(container.textContent).toContain(
+    'Google connection error (Google token exchange failed: invalid_grant)',
+  )
+})
+
+// The eye toggle is read out by screen readers and shown as a tooltip, so its
+// name is user-facing text too. It lives in attributes, not textContent.
+it('names the password toggle in the reader language', async () => {
+  await mount('/', 'vi')
+  await until(() =>
+    !!container.querySelector('button[aria-label="Hiện mật khẩu"]'),
+  )
+  const toggle = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Hiện mật khẩu"]',
+  )!
+  expect(toggle.title).toBe('Hiện mật khẩu')
+  act(() => toggle.click())
+  expect(toggle.getAttribute('aria-label')).toBe('Ẩn mật khẩu')
+  expect(toggle.title).toBe('Ẩn mật khẩu')
+})
+
+it('names the password toggle in English for an en reader', async () => {
+  await mount('/', 'en')
+  const toggle = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Show password"]',
+  )!
+  act(() => toggle.click())
+  expect(toggle.getAttribute('aria-label')).toBe('Hide password')
 })

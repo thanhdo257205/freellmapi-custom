@@ -15,12 +15,18 @@ const createKeySchema = z.object({
   name: z.string().trim().max(100).optional(),
 });
 
-// GET /api/user/session — who the caller is, including the fork's role.
+// GET /api/user/session — who the caller is, including role, isPrimary, and permissions.
 // Kept here rather than in the upstream auth routes so the dashboard can read
 // the role without editing routes/auth.ts.
 userKeysRouter.get('/session', (req: Request, res: Response) => {
   const user = (req as Request & { user?: SessionUser }).user!;
-  res.json({ email: user.email, role: user.role, userId: user.userId });
+  res.json({
+    email: user.email,
+    role: user.role,
+    userId: user.userId,
+    isPrimary: user.isPrimary ?? false,
+    permissions: user.permissions ?? [],
+  });
 });
 
 // GET /api/user/keys — list all API keys belonging to the current session user

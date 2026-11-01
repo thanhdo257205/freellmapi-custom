@@ -147,4 +147,105 @@ describe('Admin user management', () => {
     const missing = await hit('/api/admin/users/999999/revoke-sessions', 'POST', undefined, adminToken);
     expect(missing.status).toBe(404);
   });
+
+  it('protects the primary admin account from demotion, revocation, and permission edits', async () => {
+    // Create a secondary admin who has manage_users
+    const subAdmin = createUser('subadmin@example.com', 'SubAdminPass123!', 'admin');
+    const subToken = createSession(subAdmin.userId);
+
+    // Subadmin attempts to demote primary admin
+    const demoteRes = await hit(`/api/admin/users/${adminId}/role`, 'PATCH', { role: 'member' }, subToken);
+    expect(demoteRes.status).toBe(403);
+    expect(demoteRes.body?.error?.type).toBe('primary_admin_protected');
+
+    // Subadmin attempts to edit primary admin permissions
+    const permRes = await hit(`/api/admin/users/${adminId}/permissions`, 'PUT', { permissions: [] }, subToken);
+    expect(permRes.status).toBe(403);
+    expect(permRes.body?.error?.type).toBe('primary_admin_protected');
+
+    // Subadmin attempts to revoke primary admin sessions
+    const revokeRes = await hit(`/api/admin/users/${adminId}/revoke-sessions`, 'POST', undefined, subToken);
+    expect(revokeRes.status).toBe(403);
+    expect(revokeRes.body?.error?.type).toBe('primary_admin_protected');
+
+    // Subadmin attempts to revoke primary admin keys
+    const revokeKeyRes = await hit(`/api/admin/users/${adminId}/revoke-keys`, 'POST', undefined, subToken);
+    expect(revokeKeyRes.status).toBe(403);
+    expect(revokeKeyRes.body?.error?.type).toBe('primary_admin_protected');
+  });
+
+  it('allows granting granular permissions to a member user', async () => {
+    const dev = createUser('dev@example.com', 'DevPass123!', 'member');
+    const devToken = createSession(dev.userId);
+
+    // Initially member cannot access keys or invites
+    expect((await hit('/api/keys', 'GET', undefined, devToken)).status).toBe(403);
+    expect((await hit('/api/invites', 'GET', undefined, devToken)).status).toBe(403);
+
+    // Admin grants only manage_keys permission
+    const grant = await hit(`/api/admin/users/${dev.userId}/permissions`, 'PUT', { permissions: ['manage_keys'] }, adminToken);
+    expect(grant.status).toBe(200);
+    expect(grant.body).toMatchObject({ success: true, permissions: ['manage_keys'] });
+
+    // Verify session reflects new permissions
+    const sessionRes = await hit('/api/user/session', 'GET', undefined, devToken);
+    expect(sessionRes.body).toMatchObject({
+      role: 'member',
+      permissions: ['manage_keys'],
+      isPrimary: false,
+    });
+
+    // Dev can now access /api/keys
+    const keysRes = await hit('/api/keys', 'GET', undefined, devToken);
+    expect(keysRes.status).toBe(200);
+
+    // But dev still CANNOT access /api/invites or /api/admin/users
+    expect((await hit('/api/invites', 'GET', undefined, devToken)).status).toBe(403);
+    expect((await hit('/api/admin/users', 'GET', undefined, devToken)).status).toBe(403);
+  });
+
+  it('prevents privilege escalation when a member has manage_users', async () => {
+    const userManager = createUser('usermanager@example.com', 'ManagerPass123!', 'member');
+    const victim = createUser('victim@example.com', 'VictimPass123!', 'member');
+    const targetAdmin = createUser('coadmin@example.com', 'CoAdminPass123!', 'admin');
+
+    // Grant userManager manage_users permission
+    await hit(`/api/admin/users/${userManager.userId}/permissions`, 'PUT', { permissions: ['manage_users'] }, adminToken);
+    const managerToken = createSession(userManager.userId);
+
+    // 1. Manager attempts to promote victim to admin -> MUST FAIL (insufficient_privileges)
+    const promoteRes = await hit(`/api/admin/users/${victim.userId}/role`, 'PATCH', { role: 'admin' }, managerToken);
+    expect(promoteRes.status).toBe(403);
+    expect(promoteRes.body?.error?.type).toBe('insufficient_privileges');
+
+    // 2. Manager attempts to grant wildcard '*' to victim -> MUST FAIL (insufficient_privileges)
+    const wildcardRes = await hit(`/api/admin/users/${victim.userId}/permissions`, 'PUT', { permissions: ['*'] }, managerToken);
+    expect(wildcardRes.status).toBe(403);
+    expect(wildcardRes.body?.error?.type).toBe('insufficient_privileges');
+
+    // 3. Manager attempts to alter permissions of another admin -> MUST FAIL (insufficient_privileges)
+    const alterAdminRes = await hit(`/api/admin/users/${targetAdmin.userId}/permissions`, 'PUT', { permissions: ['manage_keys'] }, managerToken);
+    expect(alterAdminRes.status).toBe(403);
+    expect(alterAdminRes.body?.error?.type).toBe('insufficient_privileges');
+
+    // 4. Manager can legitimately manage member granular permissions
+    const okRes = await hit(`/api/admin/users/${victim.userId}/permissions`, 'PUT', { permissions: ['manage_invites'] }, managerToken);
+    expect(okRes.status).toBe(200);
+  });
+
+  it('enforces view_logs permission on /api/analytics', async () => {
+    const regularMember = createUser('regular@example.com', 'RegularPass123!', 'member');
+    const memberToken = createSession(regularMember.userId);
+
+    // Regular member cannot view analytics
+    const noAccess = await hit('/api/analytics/summary?range=24h', 'GET', undefined, memberToken);
+    expect(noAccess.status).toBe(403);
+
+    // Grant view_logs
+    await hit(`/api/admin/users/${regularMember.userId}/permissions`, 'PUT', { permissions: ['view_logs'] }, adminToken);
+
+    // Now member can view analytics
+    const withAccess = await hit('/api/analytics/summary?range=24h', 'GET', undefined, memberToken);
+    expect(withAccess.status).toBe(200);
+  });
 });

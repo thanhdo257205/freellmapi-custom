@@ -72,6 +72,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
   // browser on the same machine as the server never sees this field.
   const [codeRequired, setCodeRequired] = useState(false)
   const [error, setError] = useState('')
+  const [pendingNotice, setPendingNotice] = useState(false)
   const [busy, setBusy] = useState(false)
   const [attempted, setAttempted] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
@@ -105,7 +106,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
   // the desktop app's hidden account is `desktop@localhost` (no TLD), which
   // the login route accepts on purpose (server/src/routes/auth.ts), so a
   // browser tab must be able to submit it after a password reset (#1250).
-  const inviteError = isRegister && registerType === 'invite' && !inviteCode.trim() ? 'Invite code is required' : null
+  const inviteError = isRegister && registerType === 'invite' && !inviteCode.trim() ? t('auth.inviteCodeRequired') : null
   const emailError = !email.trim()
     ? t('validation.required')
     : (isSetup || isRegister) && !isEmail(email)
@@ -149,7 +150,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           return
         }
         setToken(res.token)
-        toast.success('Account created! Welcome to FreeLLMAPI.')
+        toast.success(t('auth.accountCreated'))
         onAuthed()
         return
       }
@@ -167,10 +168,23 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
     } catch (err) {
       // The server gates remote first-run setup behind a one-time code; reveal
       // the field so the operator can paste the code from the server logs.
-      if (isSetup && (err as ApiError).code === 'setup_code_required') {
+      const apiErr = err as ApiError
+      if (isSetup && apiErr.code === 'setup_code_required') {
         setCodeRequired(true)
       }
-      setError((err as Error).message)
+      // The approval-pending replies carry a machine-readable type, so the
+      // notice is shown in the reader's language instead of the server's.
+      const pending =
+        apiErr.code === 'registration_pending' ||
+        apiErr.code === 'request_already_pending'
+      setPendingNotice(pending)
+      setError(
+        apiErr.code === 'registration_pending'
+          ? t('auth.pendingApprovalNotice')
+          : apiErr.code === 'request_already_pending'
+            ? t('auth.requestAlreadyPending')
+            : apiErr.message,
+      )
     } finally {
       setBusy(false)
     }
@@ -187,12 +201,12 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="size-6" />
           </div>
-          <h1 className="text-lg font-semibold tracking-tight">Yêu cầu đã được gửi!</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{t('auth.requestSubmitted')}</h1>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Yêu cầu đăng ký tài khoản cho <strong className="text-foreground">{requestSubmittedEmail}</strong> đã được gửi tới Quản trị viên (Admin).
+            {t('auth.requestSubmittedBody', { email: requestSubmittedEmail })}
           </p>
           <div className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground text-left leading-relaxed">
-            💡 Sau khi Admin phê duyệt, bạn chỉ cần quay lại trang đăng nhập và đăng nhập bình thường bằng Gmail và mật khẩu bạn vừa đặt.
+            {t('auth.requestSubmittedHint')}
           </div>
           <Button
             onClick={() => {
@@ -202,7 +216,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
             }}
             className="w-full h-10"
           >
-            Quay lại Đăng nhập
+            {t('auth.backToLogin')}
           </Button>
         </div>
       </Centered>
@@ -232,7 +246,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           {isSetup
             ? t('auth.createYourAccount')
             : isRegister
-              ? (registerType === 'invite' ? 'Register with invite code' : 'Request account access')
+              ? (registerType === 'invite' ? t('auth.registerInviteTitle') : t('auth.registerRequestTitle'))
               : t('auth.signIn')}
         </h1>
         <p className="text-sm text-muted-foreground mt-1.5 mb-6">
@@ -240,8 +254,8 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
             ? t('auth.setupDescription')
             : isRegister
               ? (registerType === 'invite'
-                  ? 'Enter your invite code, email, and password to create an account.'
-                  : 'Enter your Gmail and password to submit an access request to the admin.')
+                  ? t('auth.registerInviteDescription')
+                  : t('auth.registerRequestDescription'))
               : t('auth.loginDescription')}
         </p>
 
@@ -256,7 +270,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Mã mời (Invite code)
+              {t('auth.tabInvite')}
             </button>
             <button
               type="button"
@@ -267,7 +281,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Yêu cầu xét duyệt
+              {t('auth.tabRequest')}
             </button>
           </div>
         )}
@@ -275,7 +289,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
         <form onSubmit={submit} className="space-y-4" noValidate>
           {isRegister && registerType === 'invite' && (
             <div className="space-y-1.5">
-              <Label className="text-xs" htmlFor="auth-invite-code">Invite code</Label>
+              <Label className="text-xs" htmlFor="auth-invite-code">{t('auth.inviteCodeLabel')}</Label>
               <Input
                 id="auth-invite-code"
                 type="text"
@@ -320,14 +334,14 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
           </div>
           {isRegister && registerType === 'request' && (
             <div className="space-y-1.5">
-              <Label className="text-xs" htmlFor="auth-request-note">Ghi chú cho Admin (tùy chọn)</Label>
+              <Label className="text-xs" htmlFor="auth-request-note">{t('auth.requestNoteLabel')}</Label>
               <Input
                 id="auth-request-note"
                 type="text"
                 autoComplete="off"
                 value={requestNote}
                 onChange={e => setRequestNote(e.target.value)}
-                placeholder="Ví dụ: Sinh viên, lập trình viên, nghiên cứu AI..."
+                placeholder={t('auth.requestNotePlaceholder')}
               />
             </div>
           )}
@@ -352,7 +366,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
             <div
               role="alert"
               className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${
-                error.includes('chờ Admin phê duyệt') || error.includes('pending approval')
+                pendingNotice
                   ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
                   : 'border-destructive/40 bg-destructive/10 text-destructive'
               }`}
@@ -366,12 +380,12 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
               ? (isSetup
                   ? t('auth.creating')
                   : isRegister
-                    ? (registerType === 'request' ? 'Đang gửi yêu cầu…' : 'Creating account…')
+                    ? (registerType === 'request' ? t('auth.sendingRequest') : t('auth.registering'))
                     : t('auth.signingIn'))
               : isSetup
                 ? t('auth.createAccount')
                 : isRegister
-                  ? (registerType === 'request' ? 'Gửi yêu cầu xét duyệt' : 'Register')
+                  ? (registerType === 'request' ? t('auth.submitRequest') : t('auth.registerButton'))
                   : t('auth.signIn')}
           </Button>
         </form>
@@ -391,7 +405,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
                 onClick={() => { setAuthView('register'); setError(''); setAttempted(false) }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                Chưa có tài khoản? <span className="font-medium text-foreground underline underline-offset-2">Đăng ký / Xin cấp quyền</span>
+                {t('auth.noAccount')} <span className="font-medium text-foreground underline underline-offset-2">{t('auth.requestAccess')}</span>
               </button>
             </div>
           </div>
@@ -403,7 +417,7 @@ function AuthForm({ mode, onAuthed }: { mode: 'setup' | 'login'; onAuthed: () =>
               onClick={() => { setAuthView('login'); setError(''); setAttempted(false) }}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              Already have an account? <span className="font-medium text-foreground underline underline-offset-2">Sign in</span>
+              {t('auth.haveAccount')} <span className="font-medium text-foreground underline underline-offset-2">{t('auth.signIn')}</span>
             </button>
           </div>
         )}
