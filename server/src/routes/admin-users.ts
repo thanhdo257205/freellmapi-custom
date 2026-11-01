@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { SYSTEM_PERMISSIONS } from '@freellmapi/shared/user-access.js';
 import {
   listUsers,
   setUserRole,
@@ -60,6 +61,12 @@ adminUsersRouter.patch('/:id/role', (req: Request, res: Response) => {
       });
       return;
     }
+    if (err.code === 'insufficient_privileges') {
+      res.status(403).json({
+        error: { message: err.message, type: 'insufficient_privileges' },
+      });
+      return;
+    }
     if (err.code === 'self_role_change') {
       res.status(409).json({
         error: { message: 'You cannot change your own role.', type: 'self_role_change' },
@@ -75,7 +82,7 @@ adminUsersRouter.patch('/:id/role', (req: Request, res: Response) => {
 });
 
 const permissionsSchema = z.object({
-  permissions: z.array(z.string().trim()),
+  permissions: z.array(z.enum([...SYSTEM_PERMISSIONS, '*'])),
 });
 
 // PUT /api/admin/users/:id/permissions
@@ -98,6 +105,12 @@ adminUsersRouter.put('/:id/permissions', (req: Request, res: Response) => {
     if (err.code === 'primary_admin_protected') {
       res.status(403).json({
         error: { message: 'The primary admin account is protected and cannot be modified.', type: 'primary_admin_protected' },
+      });
+      return;
+    }
+    if (err.code === 'insufficient_privileges') {
+      res.status(403).json({
+        error: { message: err.message, type: 'insufficient_privileges' },
       });
       return;
     }

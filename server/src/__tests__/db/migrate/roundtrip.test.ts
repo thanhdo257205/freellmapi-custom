@@ -55,6 +55,7 @@ const CUSTOM_USER_ROLES_AND_KEYS_FILENAME = '20261031_155642_custom_user_roles_a
 const CUSTOM_EXTERNAL_AUTH_FILENAME = '20261101_020000_custom_external_auth.ts';
 const CUSTOM_REGISTRATION_REQUESTS_FILENAME = '20261101_040000_custom_registration_requests.ts';
 const CUSTOM_USER_USAGE_FILENAME = '20261101_050000_custom_user_usage.ts';
+const CUSTOM_GRANULAR_RBAC_FILENAME = '20261101_163500_custom_granular_rbac.ts';
 
 
 interface SchemaRow {
@@ -157,6 +158,7 @@ describe('migration round trip', () => {
         CUSTOM_EXTERNAL_AUTH_FILENAME,
         CUSTOM_REGISTRATION_REQUESTS_FILENAME,
         CUSTOM_USER_USAGE_FILENAME,
+        CUSTOM_GRANULAR_RBAC_FILENAME,
       ]);
     } finally {
       db.close();
