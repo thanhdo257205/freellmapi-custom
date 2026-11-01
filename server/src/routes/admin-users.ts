@@ -118,6 +118,12 @@ adminUsersRouter.put('/:id/permissions', (req: Request, res: Response) => {
       res.status(404).json({ error: { message: 'No such account.', type: 'user_not_found' } });
       return;
     }
+    if (err.code === 'self_permission_change') {
+      res.status(409).json({
+        error: { message: 'You cannot change your own permissions.', type: 'self_permission_change' },
+      });
+      return;
+    }
     res.status(500).json({ error: { message: 'Failed to update permissions.' } });
   }
 });
