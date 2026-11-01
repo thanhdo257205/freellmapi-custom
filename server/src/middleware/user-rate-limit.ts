@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { validateUserApiKey, USER_KEY_PREFIX } from '../services/user-keys.js';
+import { validateUserApiKey } from '../services/user-keys.js';
 import { checkUserRateLimit, recordUserUsage } from '../services/user-quotas.js';
 
 function extractBearer(req: Request): string | undefined {

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import type { Server } from 'http';
-import { initDb, getDb } from '../../db/index.js';
+import { initDb } from '../../db/index.js';
 import { createApp } from '../../app.js';
 import { createUser, createSession } from '../../services/auth.js';
 import { mintUserApiKey, revokeUserApiKey } from '../../services/user-keys.js';
