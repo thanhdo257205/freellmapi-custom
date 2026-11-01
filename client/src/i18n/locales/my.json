@@ -144,7 +144,9 @@
     "failures": "မအောင်မြင်မှုများ",
     "dismiss": "ပယ်ဖျက်သည်",
     "status": "အခြေအနေ",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "ဆက်တင်များ",

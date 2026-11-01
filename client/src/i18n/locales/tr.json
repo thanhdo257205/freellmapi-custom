@@ -144,7 +144,9 @@
     "failures": "Başarısızlıklar",
     "dismiss": "Kapat",
     "status": "Durum",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Ayarlar",

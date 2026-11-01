@@ -144,7 +144,9 @@
     "failures": "失敗",
     "dismiss": "解雇する",
     "status": "ステータス",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "設定",

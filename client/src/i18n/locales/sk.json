@@ -144,7 +144,9 @@
     "failures": "Neúspechy",
     "dismiss": "Prepustiť",
     "status": "Stav",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Nastavenia",

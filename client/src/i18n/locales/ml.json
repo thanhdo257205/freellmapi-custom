@@ -144,7 +144,9 @@
     "failures": "പരാജയങ്ങൾ",
     "dismiss": "പിരിച്ചുവിടുക",
     "status": "നില",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "ക്രമീകരണങ്ങൾ",

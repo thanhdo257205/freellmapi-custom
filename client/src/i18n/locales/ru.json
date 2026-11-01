@@ -144,7 +144,9 @@
     "failures": "Неудачи",
     "dismiss": "Уволить",
     "status": "Статус",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Настройки",

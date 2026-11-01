@@ -144,7 +144,9 @@
     "failures": "Kushindwa",
     "dismiss": "Ondoa",
     "status": "Hali",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Mipangilio",

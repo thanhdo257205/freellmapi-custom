@@ -144,7 +144,9 @@
     "failures": "失敗",
     "dismiss": "關閉",
     "status": "狀態",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "設定",

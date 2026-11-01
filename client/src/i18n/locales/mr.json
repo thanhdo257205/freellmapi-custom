@@ -144,7 +144,9 @@
     "failures": "अपयश",
     "dismiss": "डिसमिस करा",
     "status": "स्थिती",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "सेटिंग्ज",
