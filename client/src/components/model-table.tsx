@@ -1,11 +1,14 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useI18n } from '@/i18n'
 import { CopyButton } from '@/components/copy-button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip } from '@/components/tooltip'
+import type { SortState } from '@/lib/table-sort'
+import type { ModelSortCol } from '@/lib/model-table-sort'
 import {
   cleanQuotaLabel,
   formatContext,
@@ -99,34 +102,106 @@ export function AxisRangeBar({ values, color }: { values: (number | undefined)[]
 
 // The shared table header for the unified model/provider table — used by the
 // Models page and the per-model detail page so their columns line up.
-export function ModelTableHead() {
+export interface ModelTableHeadProps {
+  sort?: SortState<ModelSortCol>
+  onToggle?: (col: ModelSortCol) => void
+}
+
+export function ModelTableHead({ sort, onToggle }: ModelTableHeadProps = {}) {
   const { t } = useI18n()
+
+  function renderHeaderButton(
+    col: ModelSortCol,
+    content: ReactNode,
+    align: 'left' | 'right' | 'center' = 'left',
+  ) {
+    if (!onToggle) return content
+
+    const active = sort?.column === col
+    const direction = active ? sort.direction : null
+    const Indicator = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ChevronsUpDown
+
+    return (
+      <button
+        type="button"
+        onClick={() => onToggle(col)}
+        aria-label={t('analytics.sortBy', { column: typeof content === 'string' ? content : col })}
+        className={`group/sort inline-flex items-center gap-1 select-none font-medium transition-colors hover:text-foreground ${
+          align === 'right' ? 'flex-row-reverse ml-auto' : align === 'center' ? 'justify-center mx-auto' : ''
+        } ${active ? 'text-foreground' : 'text-muted-foreground'}`}
+      >
+        <span>{content}</span>
+        <Indicator
+          className={`size-3 shrink-0 transition-opacity ${
+            active ? 'opacity-100' : 'opacity-0 group-hover/sort:opacity-60'
+          }`}
+          aria-hidden="true"
+        />
+      </button>
+    )
+  }
+
   return (
     <thead>
       <tr className="text-left text-muted-foreground border-b">
         <th className="py-2 pl-3 pr-1 w-6"></th>
-        <th className="py-2 pr-2 w-6 text-center font-medium">#</th>
-        <th className="py-2 pr-3 font-medium">{t('models.columnModel')}</th>
-        <th className="py-2 pr-3 font-medium">
-          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm" style={{ background: '#22c55e' }} />{t('strategies.weightReliability')}</span>
+        <th className="py-2 pr-2 w-6 text-center font-medium">
+          {renderHeaderButton('rank', '#', 'center')}
         </th>
         <th className="py-2 pr-3 font-medium">
-          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm" style={{ background: '#3b82f6' }} />{t('strategies.weightSpeed')}</span>
+          {renderHeaderButton('model', t('models.columnModel'), 'left')}
         </th>
         <th className="py-2 pr-3 font-medium">
-          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-sm" style={{ background: '#a855f7' }} />{t('strategies.weightIntelligence')}</span>
+          {renderHeaderButton(
+            'reliability',
+            <span className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-sm" style={{ background: '#22c55e' }} />
+              {t('strategies.weightReliability')}
+            </span>,
+            'left',
+          )}
         </th>
         <th className="py-2 pr-3 font-medium">
-          <Tooltip text={t('strategies.guardrailsTooltip')}>
-            <span className="underline decoration-dotted underline-offset-2 cursor-help">{t('strategies.guardrails')}</span>
-          </Tooltip>
+          {renderHeaderButton(
+            'speed',
+            <span className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-sm" style={{ background: '#3b82f6' }} />
+              {t('strategies.weightSpeed')}
+            </span>,
+            'left',
+          )}
+        </th>
+        <th className="py-2 pr-3 font-medium">
+          {renderHeaderButton(
+            'intelligence',
+            <span className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-sm" style={{ background: '#a855f7' }} />
+              {t('strategies.weightIntelligence')}
+            </span>,
+            'left',
+          )}
+        </th>
+        <th className="py-2 pr-3 font-medium">
+          {renderHeaderButton(
+            'guardrails',
+            <Tooltip text={t('strategies.guardrailsTooltip')}>
+              <span className="underline decoration-dotted underline-offset-2 cursor-help">{t('strategies.guardrails')}</span>
+            </Tooltip>,
+            'left',
+          )}
         </th>
         <th className="py-2 pr-3 font-medium text-right">
-          <Tooltip text={t('strategies.scoreTooltip')}>
-            <span className="underline decoration-dotted underline-offset-2 cursor-help">{t('strategies.scoreColumn')}</span>
-          </Tooltip>
+          {renderHeaderButton(
+            'score',
+            <Tooltip text={t('strategies.scoreTooltip')}>
+              <span className="underline decoration-dotted underline-offset-2 cursor-help">{t('strategies.scoreColumn')}</span>
+            </Tooltip>,
+            'right',
+          )}
         </th>
-        <th className="py-2 pr-3 font-medium text-right">{t('models.columnOn')}</th>
+        <th className="py-2 pr-3 font-medium text-right">
+          {renderHeaderButton('on', t('models.columnOn'), 'right')}
+        </th>
       </tr>
     </thead>
   )
