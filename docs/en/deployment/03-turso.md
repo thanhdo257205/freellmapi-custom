@@ -81,6 +81,12 @@ This integration does not upload or replace your current Render data itself.
 
 ## Render responsiveness
 
+For the proposed next stages (measurement, client polling, async reads, catalog
+batching, query/index work and route splitting), see the
+[performance implementation handoff (Vietnamese)](../../performance/README.md).
+That roadmap is a plan for separately reviewed PRs, not functionality enabled
+by this deployment guide.
+
 The synchronous transport makes both `prepare()` and execution network calls.
 The adapter retains at most 128 SELECT statement handles per connection; it
 does not cache query results. A small allowlist of routing settings is fetched
