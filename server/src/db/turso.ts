@@ -3,6 +3,11 @@ import type { Db, DbFactory, DbStatement } from './types.js';
 
 const runtimeRequire = createRequire(import.meta.url);
 const remoteDatabases = new WeakSet<Db>();
+const writeVersions = new WeakMap<Db, number>();
+
+export function tursoWriteVersion(db: Db): number {
+  return writeVersions.get(db) ?? 0;
+}
 
 export function tursoEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const driver = env.FREEAPI_DB_DRIVER?.trim().toLowerCase() || 'sqlite';
@@ -46,6 +51,21 @@ function sanitizedDriverError(error: unknown, secrets: readonly string[]): Error
 export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly string[] = []): Db {
   let depth = 0;
   let sequence = 0;
+  // Remote prepare is itself a network request. Retain a bounded set of SELECT
+  // handles (never result rows); execution still reads current database state.
+  const reads = new Map<string, DbStatement>();
+  function prepare(sql: string): DbStatement {
+    if (!remote || !/^\s*SELECT\b/i.test(sql)) return safe(() => raw.prepare(sql));
+    let stmt = reads.get(sql);
+    if (stmt) reads.delete(sql);
+    else stmt = safe(() => raw.prepare(sql));
+    reads.set(sql, stmt);
+    if (reads.size > 128) reads.delete(reads.keys().next().value!);
+    return stmt;
+  }
+  function invalidateReads(): void {
+    writeVersions.set(db, tursoWriteVersion(db) + 1);
+  }
   function safe<T>(operation: () => T): T {
     try { return operation(); } catch (error) {
       if (!(error instanceof Error) || secrets.length === 0) throw error;
@@ -60,7 +80,7 @@ export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly stri
     return value;
   }
   function statement(sql: string): DbStatement {
-    const stmt = safe(() => raw.prepare(sql));
+    const stmt = prepare(sql);
     // libsql 0.5.x drops object bindings on the remote transport. Convert named
     // bindings to positional ones without touching quoted SQL or comments.
     const names: string[] = [];
@@ -83,20 +103,31 @@ export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly stri
           if (Object.hasOwn(values, name.slice(1))) return values[name.slice(1)];
           throw new Error(`Missing SQL named parameter ${name}`);
         });
-        positional ??= safe(() => raw.prepare(positionalSql));
+        positional ??= prepare(positionalSql);
         return safe(() => run(positional!, params));
       }
       return safe(() => run(stmt, args));
     }
     return {
-      get: (...args) => row(bound(args, (target, values) => target.get(...values))),
-      all: (...args) => bound(args, (target, values) => target.all(...values)).map(row),
-      run: (...args) => bound(args, (target, values) => target.run(...values)),
+      get: (...args) => {
+        if (!/^\s*SELECT\b/i.test(sql)) invalidateReads();
+        return row(bound(args, (target, values) => target.get(...values)));
+      },
+      all: (...args) => {
+        if (!/^\s*SELECT\b/i.test(sql)) invalidateReads();
+        return bound(args, (target, values) => target.all(...values)).map(row);
+      },
+      run: (...args) => {
+        invalidateReads();
+        return bound(args, (target, values) => target.run(...values));
+      },
     };
   }
   const db: Db = {
     prepare: statement,
     exec: sql => {
+      invalidateReads();
+      reads.clear();
       // Upstream's endpoint-identity migration parks child rows in TEMP tables.
       // Turso disallows TEMP. These reserved tables are created and dropped in
       // the same write transaction, so ordinary tables have the same lifetime.
@@ -108,9 +139,11 @@ export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly stri
     pragma: source => {
       // These are controlled by Turso, not by individual remote connections.
       if (remote && /^\s*(journal_mode|busy_timeout|wal_checkpoint)\b/i.test(source)) return [];
+      invalidateReads();
+      reads.clear();
       return safe(() => raw.pragma(source));
     },
-    close: () => raw.close?.(),
+    close: () => { reads.clear(); raw.close?.(); },
     transaction: <F extends (...args: any[]) => unknown>(fn: F): F => {
       const wrapped = function (this: unknown, ...args: Parameters<F>): ReturnType<F> {
         const outermost = depth === 0;
@@ -133,7 +166,7 @@ export function wrapTursoDatabase(raw: Db, remote = true, secrets: readonly stri
             }
           } catch { /* Preserve the original failure. */ }
           throw error;
-        } finally { depth -= 1; }
+        } finally { depth -= 1; invalidateReads(); }
       };
       return wrapped as F;
     },

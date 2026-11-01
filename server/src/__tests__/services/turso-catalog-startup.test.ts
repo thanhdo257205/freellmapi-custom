@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDb, initDb, setSetting } from '../../db/index.js';
 import { startCatalogSync, stopCatalogSync } from '../../services/catalog-sync.js';
 import type { Scheduler } from '../../lib/scheduler.js';
+import Database from 'better-sqlite3';
+import { wrapTursoDatabase } from '../../db/turso.js';
+import type { Db } from '../../db/types.js';
 
 describe('catalog startup on persistent remote storage', () => {
   beforeEach(() => {
@@ -44,5 +47,16 @@ describe('catalog startup on persistent remote storage', () => {
     expect(getDb().prepare("SELECT id FROM models WHERE model_id='cached-startup-model'").get()).toBeUndefined();
     expect(timer.after).toHaveBeenCalledOnce();
     expect(timer.every).toHaveBeenCalledOnce();
+  });
+
+  it('never schedules blocking automatic catalog writes on remote Turso', () => {
+    getDb().close?.();
+    initDb(':memory:', { factory: () => wrapTursoDatabase(new Database(':memory:') as unknown as Db) });
+    const timer = scheduler();
+    const before = getDb().prepare('SELECT count(*) AS n FROM models').get();
+    startCatalogSync(timer);
+    expect(getDb().prepare('SELECT count(*) AS n FROM models').get()).toEqual(before);
+    expect(timer.after).not.toHaveBeenCalled();
+    expect(timer.every).not.toHaveBeenCalled();
   });
 });
