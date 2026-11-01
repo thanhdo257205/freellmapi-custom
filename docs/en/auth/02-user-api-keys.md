@@ -22,14 +22,15 @@ Unlike provider keys, user keys are **hashed, not AES-256-GCM encrypted**: they 
 
 ## Endpoints
 
-All of these are dashboard-session routes (`Authorization: Bearer <session token>` from `/api/auth/login`), scoped to the caller — a key is never valid on `/api/*` ([`requireAuth`](../../../server/src/middleware/requireAuth.ts) only accepts session tokens). Mounted at `/api/user` with `requireAuth` but **not** `requireAdmin` ([server/src/custom/register.ts:45](../../../server/src/custom/register.ts#L45)), so members manage their own keys.
+All of these are dashboard-session routes (`Authorization: Bearer <session token>` from `/api/auth/login`), scoped to the caller — a key is never valid on `/api/*` ([`requireAuth`](../../../server/src/middleware/requireAuth.ts) only accepts session tokens). Mounted at `/api/user` with `requireAuth` and **no permission gate** ([server/src/custom/register.ts:99](../../../server/src/custom/register.ts#L99)), so members manage their own keys and read their own usage without holding any grant.
 
 | Method | Path | Effect |
 |---|---|---|
-| `GET` | `/api/user/session` | Caller's `{ email, role, userId }` ([server/src/routes/user-keys.ts:20](../../../server/src/routes/user-keys.ts#L20)) — the fork's way to read the role without touching upstream's `/api/auth/*` responses. `client/src/custom/use-session.ts` is the only consumer |
+| `GET` | `/api/user/session` | Caller's `{ email, role, userId, isPrimary, permissions }` ([server/src/routes/user-keys.ts:21](../../../server/src/routes/user-keys.ts#L21)) — the fork's way to read role and grants without touching upstream's `/api/auth/*` responses. `client/src/custom/use-session.ts` is the only consumer |
 | `GET` | `/api/user/keys` | Caller's keys, newest first, with `revoked` and `lastUsedAt` |
 | `POST` | `/api/user/keys` | `{ name? }` → `201 { key: { id, key, keyPrefix, name, createdAt } }`; plaintext appears only here |
 | `DELETE` | `/api/user/keys/:id` | Sets `revoked = 1` for a key owned by the caller; `404` if it is another user's key or already revoked |
+| `GET` | `/api/user/usage` | Caller's own current-month `{ requests, tokens, rpmLimit }` ([server/src/routes/user-keys.ts:71](../../../server/src/routes/user-keys.ts#L71)); the admin-wide view is `GET /api/admin/users/usage`, which needs `manage_users` ([05](05-admin-user-management.md)) |
 
 There is no endpoint that lists or revokes *another* user's keys, and no un-revoke.
 
@@ -59,15 +60,29 @@ curl -s "$BASE/v1/chat/completions" \
   -d '{"model":"auto","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-A member's key routes through the same catalog, fallback chain, sticky sessions and provider pool as the unified key. It grants no model restriction, no chain restriction, and no separate spend view.
+A member's key routes through the same catalog, fallback chain, sticky sessions and provider pool as the unified key. It grants no model restriction and no chain restriction; it does carry an identity, which is what makes the per-user RPM limit and the request counter below possible.
+
+## What is enforced, and where the edges are
+
+`app.use('/v1', userInferenceGate)` ([server/src/custom/register.ts:89](../../../server/src/custom/register.ts#L89)) runs before upstream's inference routes and, for a `sk-flm-…` bearer token, does two things ([server/src/middleware/user-rate-limit.ts:17](../../../server/src/middleware/user-rate-limit.ts#L17)):
+
+- **Per-user RPM limit.** `user_api_keys.rpm_limit` (default `60`) is a sliding 60-second window per `userId`; over the cap the gate answers `429 user_rate_limit_exceeded` and every response carries `X-RateLimit-Limit-User-RPM` / `-Remaining-` / `-Reset-`. `PUT /api/admin/users/:id/quota` changes it, 1..1000 ([05](05-admin-user-management.md)).
+- **Monthly request counting.** On any response under 400 it upserts `user_monthly_usage` for `YYYY-MM`, best-effort inside a `try`/`catch` that swallows failures. Read it back at `GET /api/user/usage` or, for everyone, `GET /api/admin/users/usage`.
+
+Four things to know about it, all read off the code:
+
+- **The gate only recognises `Authorization: Bearer sk-flm-…`.** [`extractBearer`](../../../server/src/middleware/user-rate-limit.ts#L5) matches that one header shape, so the same key presented as `x-api-key` or `x-goog-api-key`, or in Gemini's `?key=` — all shapes [`resolveAuth`](../../../server/src/lib/system-prompt.ts#L62) accepts, on `/v1`, `/v1/messages` and `/v1beta` alike — reaches inference unchecked: the request succeeds, no RPM check runs, nothing is counted. Treat the limit as a courtesy counter for well-behaved clients, not an enforcement boundary — the real ceilings are the per-IP proxy limiter (`PROXY_RATE_LIMIT_RPM`, default 120) and the upstream providers' own quotas.
+- **The window is in-process memory** (`Map` in [`user-quotas.ts:4`](../../../server/src/services/user-quotas.ts#L4)). A restart clears it, and replicas behind a load balancer each count their own traffic, so the effective cap is `limit × replicas` with a free refill on deploy.
+- **`tokens` is never recorded.** The only production call site passes `0` ([`user-rate-limit.ts:56`](../../../server/src/middleware/user-rate-limit.ts#L56)), so `user_monthly_usage.tokens` stays `0` and the admin usage table shows request counts only — there is no per-person cost figure.
+- **Revoked or unknown `sk-flm-…` bearer tokens are rejected by the gate with `401 invalid_api_key`**, which is a different answer from upstream's unified-key path and happens *before* `resolveAuth` runs.
+
+Also unchanged: **no expiry** on a key, and no way to scope one to a model or an endpoint.
 
 ## What is not enforced
 
 Verified against the current code — do not document or sell these as features:
 
-- **`rpm_limit` is inert.** The column defaults to `60` and `validateUserApiKey` returns it, but no consumer reads it ([user-keys.ts:135](../../../server/src/services/user-keys.ts#L135)); `resolveAuth` drops it. The same is now true of the `role` that `validateUserApiKey` also reads ([`:134`](../../../server/src/services/user-keys.ts#L134)) — `resolveAuth`'s user branch keeps only `{ userId, email }` ([system-prompt.ts:65](../../../server/src/lib/system-prompt.ts#L65)), so a member key and an admin key are indistinguishable to the inference pipeline. The only real ceilings are the per-IP proxy limiter (`PROXY_RATE_LIMIT_RPM`, default 120) and the upstream providers' own quotas.
-- **No per-user usage accounting.** `kind: 'user'` carries `userId` and `email`, and nothing downstream uses them, so Analytics still reports the instance as one tenant. Attribution by person currently means one instance per person, or reading `last_used_at`.
-- **No expiry** on a key, and no way to scope one to a model or an endpoint.
+- **No per-user *cost* attribution.** `kind: 'user'` carries `userId` and `email` through `resolveAuth`, and nothing downstream uses them, so Analytics still reports the instance as one tenant; per-person accounting means the request counts above, or one instance per person. The `role` that [`validateUserApiKey`](../../../server/src/services/user-keys.ts#L134) also reads is dropped by `resolveAuth`'s user branch ([`system-prompt.ts:65`](../../../server/src/lib/system-prompt.ts#L65)), so a member key and an admin key are indistinguishable to the inference pipeline itself.
 
 ## Cost of using one
 

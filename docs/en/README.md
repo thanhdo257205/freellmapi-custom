@@ -13,7 +13,7 @@ This is the user entry point — start here to install the gateway, call the Ope
 - **[Prompt compression](compression/01-compression-pipeline.md)** — request-side modes, safeguards, per-request controls, custom tool-output filters, statistics, and preview APIs.
 - **[Proxy transports](proxy/OVERVIEW.md)** — outbound proxy transports — forward vs Fetch Relay, system auto-detect, `TRUST_PROXY` for inbound; see [Fetch Relay transport](proxy/01-fetch-relay.md) for the relay protocol and Cloudflare Worker reference.
 - **[Architecture & internals](architecture/00-high-level-index.md)** — how the router works, routing and operational details, what's not supported, honest limitations, and the provider Terms-of-Service review.
-- **[Multi-user access (this fork)](auth/OVERVIEW.md)** — admin/member roles, invite-only registration, and per-user `sk-flm-…` API keys. Custom feature; upstream is single-user.
+- **[Multi-user access (this fork)](auth/OVERVIEW.md)** — admin/member roles with granular permission grants, invite-code registration, permission-gated `/api/*` mounts, and per-user `sk-flm-…` API keys with their own request quota. Custom feature; upstream is single-user.
 
 ## More
 
