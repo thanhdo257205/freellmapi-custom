@@ -111,7 +111,8 @@
     "googleTokenError": "Lỗi kết nối Google ({detail}). Vui lòng kiểm tra lại cấu hình Google Client Secret trên Render.",
     "googleInviteRequiredError": "Tài khoản Google này chưa có trong danh sách người dùng và không có mã mời hợp lệ. Vui lòng đăng nhập bằng Mật khẩu hoặc gửi yêu cầu xét duyệt.",
     "googleLinkConflictError": "Tài khoản email này đã được liên kết với một tài khoản Google khác.",
-    "googleFailedDetail": "Đăng nhập Google thất bại: {detail}"
+    "googleFailedDetail": "Đăng nhập Google thất bại: {detail}",
+    "googleDestBlockedError": "Đăng nhập Google đã bị chặn vì đường dẫn đăng nhập không đến từ Google."
   },
   "common": {
     "save": "Lưu",
