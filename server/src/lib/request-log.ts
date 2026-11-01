@@ -121,21 +121,22 @@ export function logRequest(
     // Caller identity from the request-scoped context (set by the express
     // middleware); null when logging happens outside an HTTP request.
     const client = getClientContext();
+    const modelDbId = resolveModelDbId(db, platform, modelId, keyId);
+    const nowIso = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const hour = hourKey(nowIso);
+    const isSuccess = status === 'success' ? 1 : 0;
+    const isError = status === 'error' ? 1 : 0;
+
     const tx = db.transaction(() => {
       const insert = db.prepare(`
-        INSERT INTO requests (platform, model_id, key_id, status, input_tokens, output_tokens, latency_ms, error, ttfb_ms, requested_model, served_model, client_ip, client_user_agent, client_agent, caller, model_db_id, failure_attribution)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(platform, modelId, keyId, status, inputTokens, outputTokens, latencyMs, error, ttfbMs, requestedModel, servedModel, client.ip, client.userAgent, client.agent, caller, resolveModelDbId(db, platform, modelId, keyId), failureAttribution);
+        INSERT INTO requests (platform, model_id, key_id, status, input_tokens, output_tokens, latency_ms, error, ttfb_ms, requested_model, served_model, client_ip, client_user_agent, client_agent, caller, model_db_id, failure_attribution, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(platform, modelId, keyId, status, inputTokens, outputTokens, latencyMs, error, ttfbMs, requestedModel, servedModel, client.ip, client.userAgent, client.agent, caller, modelDbId, failureAttribution, nowIso);
 
       // Report the row id back to the fallback loop's attempt trace (if one is
       // active): the LAST id noted during a loop run is the terminal row the
       // per-attempt batch is keyed to. No-op outside a fallback-loop run.
       if (insert.lastInsertRowid != null) noteRequestRowId(insert.lastInsertRowid);
-
-      const createdAt = db.prepare(`SELECT created_at FROM requests WHERE id = ?`).get(insert.lastInsertRowid) as { created_at: string } | undefined;
-      const hour = hourKey(createdAt?.created_at ?? new Date().toISOString().slice(0, 19).replace('T', ' '));
-      const isSuccess = status === 'success' ? 1 : 0;
-      const isError = status === 'error' ? 1 : 0;
 
       db.prepare(`
         INSERT INTO request_hourly (hour, total_requests, success_count, error_count, input_tokens, output_tokens)
@@ -151,9 +152,7 @@ export function logRequest(
       incrementSetting(db, 'total_requests', 1);
       incrementSetting(db, 'total_input_tokens', inputTokens);
       incrementSetting(db, 'total_output_tokens', outputTokens);
-      if (createdAt?.created_at) {
-        setSettingIfMissing(db, 'first_request_at', createdAt.created_at);
-      }
+      setSettingIfMissing(db, 'first_request_at', nowIso);
     });
     tx();
 
@@ -183,16 +182,32 @@ export function persistRequestAttempts(trace: RequestTrace): void {
   if (trace.records.length === 0 || trace.lastRequestRowId == null) return;
   try {
     const db = getDb();
-    const insert = db.prepare(`
-      INSERT INTO request_attempts (request_id, ordinal, platform, model_id, key_ordinal, key_label, outcome, start_offset_ms, duration_ms, error_summary)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const tx = db.transaction(() => {
-      for (const r of trace.records) {
-        insert.run(trace.lastRequestRowId, r.ordinal, r.platform, r.modelId, r.keyOrdinal, r.keyLabel, r.outcome, r.startOffsetMs, r.durationMs, r.errorSummary);
+    const records = trace.records;
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const sql = `
+        INSERT INTO request_attempts (request_id, ordinal, platform, model_id, key_ordinal, key_label, outcome, start_offset_ms, duration_ms, error_summary)
+        VALUES ${placeholders}
+      `;
+      const values: unknown[] = [];
+      for (const r of chunk) {
+        values.push(
+          trace.lastRequestRowId,
+          r.ordinal,
+          r.platform,
+          r.modelId,
+          r.keyOrdinal,
+          r.keyLabel,
+          r.outcome,
+          r.startOffsetMs,
+          r.durationMs,
+          r.errorSummary,
+        );
       }
-    });
-    tx();
+      db.prepare(sql).run(...values);
+    }
   } catch (e) {
     console.error('Failed to persist request attempts:', e);
   }

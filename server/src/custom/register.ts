@@ -87,6 +87,7 @@ function installGate(app: Express, gate: PermissionGate): void {
 
 export function registerCustomRoutes(app: Express): void {
   app.use('/api', (_req, _res, next) => withRoutingSettingsScope(next));
+  app.use('/v1', (_req, _res, next) => withRoutingSettingsScope(next));
   // Rate-limiting and usage tracking gate for member personal API keys (/v1 inference)
   app.use('/v1', userInferenceGate);
 
