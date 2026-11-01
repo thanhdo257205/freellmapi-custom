@@ -48,7 +48,35 @@ export function UsersPage() {
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ['users'] })
     queryClient.invalidateQueries({ queryKey: ['registration-requests'] })
+    queryClient.invalidateQueries({ queryKey: ['admin-users-usage'] })
   }
+
+  const { data: usageData } = useQuery<{
+    usage: Array<{ userId: number; email: string; requests: number; tokens: number; rpmLimit: number }>
+  }>({
+    queryKey: ['admin-users-usage'],
+    queryFn: () =>
+      apiFetch<{
+        usage: Array<{ userId: number; email: string; requests: number; tokens: number; rpmLimit: number }>
+      }>('/api/admin/users/usage'),
+  })
+
+  const usageMap = new Map((usageData?.usage ?? []).map(u => [u.userId, u]))
+
+  const quotaMutation = useMutation({
+    mutationFn: ({ id, rpmLimit }: { id: number; rpmLimit: number }) =>
+      apiFetch<{ success: boolean; rpmLimit: number }>(`/api/admin/users/${id}/quota`, {
+        method: 'PUT',
+        body: JSON.stringify({ rpmLimit }),
+      }),
+    onSuccess: () => {
+      refreshAll()
+      toast.success('RPM quota limit updated')
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Failed to update RPM limit')
+    },
+  })
 
   const roleMutation = useMutation({
     mutationFn: ({ id, role }: { id: number; role: 'admin' | 'member' }) =>
@@ -232,6 +260,30 @@ export function UsersPage() {
                       <span>Joined: {new Date(u.createdAt).toLocaleDateString()}</span>
                       <span>Active keys: <strong>{u.activeKeys}</strong></span>
                       <span>Sessions: <strong>{u.sessions}</strong></span>
+                      <span>This month: <strong className="text-foreground">{usageMap.get(u.id)?.requests ?? 0} reqs</strong> ({usageMap.get(u.id)?.tokens ?? 0} tokens)</span>
+                      <span className="flex items-center gap-1">
+                        Limit: <strong className="text-foreground">{usageMap.get(u.id)?.rpmLimit ?? 60} RPM</strong>
+                        {!u.isSelf && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const current = usageMap.get(u.id)?.rpmLimit ?? 60
+                              const input = window.prompt(`Set RPM limit for ${u.email} (1-1000 requests/minute):`, String(current))
+                              if (input !== null) {
+                                const val = parseInt(input.trim(), 10)
+                                if (!isNaN(val) && val >= 1 && val <= 1000) {
+                                  quotaMutation.mutate({ id: u.id, rpmLimit: val })
+                                } else {
+                                  toast.error('Limit must be an integer between 1 and 1000')
+                                }
+                              }
+                            }}
+                            className="text-[11px] text-primary hover:underline underline-offset-2 ml-1"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </span>
                     </div>
                   </div>
 

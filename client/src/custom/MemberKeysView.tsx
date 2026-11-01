@@ -28,6 +28,11 @@ export function MemberKeysView() {
 
   const keys = data?.keys ?? []
 
+  const { data: usageData } = useQuery<{ usage: { requests: number; tokens: number; month: string } }>({
+    queryKey: ['user-usage'],
+    queryFn: () => apiFetch<{ usage: { requests: number; tokens: number; month: string } }>('/api/user/usage'),
+  })
+
   const createKeyMutation = useMutation({
     mutationFn: (name: string) =>
       apiFetch<{ key: { key: string; name: string; id: number } }>('/api/user/keys', {
@@ -84,6 +89,24 @@ export function MemberKeysView() {
           </Button>
         }
       />
+
+      {/* Usage & Quota Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="rounded-2xl border bg-card p-5 space-y-1 shadow-sm">
+          <div className="text-xs font-medium text-muted-foreground">Usage this month ({usageData?.usage?.month || 'Current'})</div>
+          <div className="text-2xl font-bold text-foreground">
+            {usageData?.usage?.requests ?? 0} <span className="text-sm font-normal text-muted-foreground">requests</span>
+          </div>
+          <div className="text-xs text-muted-foreground">{usageData?.usage?.tokens ?? 0} total tokens</div>
+        </div>
+        <div className="rounded-2xl border bg-card p-5 space-y-1 shadow-sm">
+          <div className="text-xs font-medium text-muted-foreground">Rate Limit Quota</div>
+          <div className="text-2xl font-bold text-foreground">
+            60 <span className="text-sm font-normal text-muted-foreground">RPM</span>
+          </div>
+          <div className="text-xs text-muted-foreground">Up to 60 requests/minute allocated to your personal keys</div>
+        </div>
+      </div>
 
       {/* Newly minted key banner */}
       {newlyCreatedKey && (

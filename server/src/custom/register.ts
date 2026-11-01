@@ -7,6 +7,7 @@ import { invitesRouter } from '../routes/invites.js';
 import { userKeysRouter } from '../routes/user-keys.js';
 import { externalAuthRouter } from '../routes/external-auth.js';
 import { customAuthRouter } from './auth.js';
+import { userInferenceGate } from '../middleware/user-rate-limit.js';
 
 // Everything this fork adds to the HTTP surface is wired here, so upstream's
 // app.ts keeps a handful of added lines instead of edited mount statements.
@@ -33,6 +34,9 @@ export const ADMIN_ONLY_PREFIXES: string[] = [
 ];
 
 export function registerCustomRoutes(app: Express): void {
+  // Rate-limiting and usage tracking gate for member personal API keys (/v1 inference)
+  app.use('/v1', userInferenceGate);
+
   // Guard mount: it ends the request with 401/403 for a non-admin, and simply
   // calls next() otherwise. Upstream's own mount then re-runs requireAuth for
   // the admin case — one extra session lookup per admin request, which is the
