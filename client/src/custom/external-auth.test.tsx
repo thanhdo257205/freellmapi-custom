@@ -306,3 +306,25 @@ it('keeps the token-exchange detail while translating its wrapper', async () => 
     'Google connection error (Google token exchange failed: invalid_grant)',
   )
 })
+
+// The eye toggle is read out by screen readers and shown as a tooltip, so its
+// name is user-facing text too. It lives in attributes, not textContent.
+it('names the password toggle in the reader language', async () => {
+  await mount('/', 'vi')
+  const toggle = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Hiện mật khẩu"]',
+  )!
+  expect(toggle.title).toBe('Hiện mật khẩu')
+  act(() => toggle.click())
+  expect(toggle.getAttribute('aria-label')).toBe('Ẩn mật khẩu')
+  expect(toggle.title).toBe('Ẩn mật khẩu')
+})
+
+it('names the password toggle in English for an en reader', async () => {
+  await mount('/', 'en')
+  const toggle = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Show password"]',
+  )!
+  act(() => toggle.click())
+  expect(toggle.getAttribute('aria-label')).toBe('Hide password')
+})
