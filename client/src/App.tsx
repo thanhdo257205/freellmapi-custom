@@ -177,6 +177,7 @@ if (isDesktopApp) {
 
 function AccountMenuItems({
   showUpgrade,
+  canManageSettings = true,
   upgradeLabel,
   settingsLabel,
   updatesLabel,
@@ -190,6 +191,7 @@ function AccountMenuItems({
   onChangePassword,
 }: {
   showUpgrade: boolean
+  canManageSettings?: boolean
   upgradeLabel: string
   settingsLabel: string
   updatesLabel: string
@@ -210,14 +212,18 @@ function AccountMenuItems({
           {upgradeLabel}
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem onClick={onOpenSettings}>
-        <Settings />
-        {settingsLabel}
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={onOpenUpdates}>
-        <RefreshCw />
-        {updatesLabel}
-      </DropdownMenuItem>
+      {canManageSettings && (
+        <>
+          <DropdownMenuItem onClick={onOpenSettings}>
+            <Settings />
+            {settingsLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onOpenUpdates}>
+            <RefreshCw />
+            {updatesLabel}
+          </DropdownMenuItem>
+        </>
+      )}
       {/* Desktop signs in with a hidden local account, so it has no credentials
           to change and no session to end. */}
       {!isDesktopApp && (
@@ -245,7 +251,7 @@ function Navbar() {
   const { t } = useI18n()
   const location = useLocation()
   const navigate = useNavigate()
-  const { isMember, isAdmin } = useUserSession()
+  const { isMember, isAdmin, hasPermission } = useUserSession()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [updatesOpen, setUpdatesOpen] = useState(false)
   // The update pill lives outside the navbar; it asks for this dialog by event.
@@ -258,16 +264,19 @@ function Navbar() {
   const { data: premium, licensed, isLoading: premiumLoading, isError: premiumError } = usePremium()
   const showUpgrade = Boolean(premium) && !licensed && !premiumLoading && !premiumError
 
-  const visibleNavItems: Array<{ to: string; labelKey: string; customLabel?: string }> = isMember
-    ? navItems.filter((i) => i.to !== '/analytics' && i.to !== '/premium')
-    : isAdmin
-      ? [
-          ...navItems.filter((i) => i.to !== '/premium'),
-          { to: '/invites', labelKey: 'nav.invites', customLabel: 'Invites' },
-          { to: '/users', labelKey: 'nav.users', customLabel: 'Users' },
-          ...navItems.filter((i) => i.to === '/premium'),
-        ]
-      : navItems
+  const canManageInvites = typeof hasPermission === 'function' ? hasPermission('manage_invites') : isAdmin
+  const canManageUsers = typeof hasPermission === 'function' ? hasPermission('manage_users') : isAdmin
+  const canManageSettings = typeof hasPermission === 'function' ? hasPermission('manage_settings') : isAdmin
+
+  const visibleNavItems: Array<{ to: string; labelKey: string; customLabel?: string }> = [
+    ...navItems.filter((i) => {
+      if (i.to === '/analytics' && isMember && (typeof hasPermission !== 'function' || !hasPermission('view_logs'))) return false
+      if (i.to === '/premium' && isMember) return false
+      return true
+    }),
+    ...(canManageInvites ? [{ to: '/invites', labelKey: 'nav.invites', customLabel: 'Invites' }] : []),
+    ...(canManageUsers ? [{ to: '/users', labelKey: 'nav.users', customLabel: 'Users' }] : []),
+  ]
 
   return (
     <>
@@ -342,6 +351,7 @@ function Navbar() {
               <DropdownMenuContent align="end" className="w-48">
                 <AccountMenuItems
                   showUpgrade={showUpgrade}
+                  canManageSettings={canManageSettings}
                   upgradeLabel={t('nav.upgrade')}
                   settingsLabel={t('nav.settings')}
                   updatesLabel={t('settings.checkForUpdates')}
@@ -398,6 +408,7 @@ function Navbar() {
                 <DropdownMenuSeparator />
                 <AccountMenuItems
                   showUpgrade={showUpgrade}
+                  canManageSettings={canManageSettings}
                   upgradeLabel={t('nav.upgrade')}
                   settingsLabel={t('nav.settings')}
                   updatesLabel={t('settings.checkForUpdates')}

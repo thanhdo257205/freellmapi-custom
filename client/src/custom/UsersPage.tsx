@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, LogOut, KeyRound, Check, X, Clock, FileText } from 'lucide-react'
+import { Users, LogOut, KeyRound, Check, X, Clock, FileText, Shield, Crown } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/page-header'
 import { ConfirmButton } from '@/components/confirm-button'
 import { toast } from '@/lib/toast'
+import { PermissionsDialog } from './PermissionsDialog'
 
 import type { AdminUser, RegistrationRequest } from '../../../shared/user-access'
 export type { AdminUser, RegistrationRequest } from '../../../shared/user-access'
@@ -15,6 +16,7 @@ export function UsersPage() {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [activeTab, setActiveTab] = useState<'accounts' | 'requests'>('accounts')
+  const [permissionsUser, setPermissionsUser] = useState<AdminUser | null>(null)
 
   const {
     data, isLoading, isError, error, refetch,
@@ -241,21 +243,40 @@ export function UsersPage() {
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-foreground truncate">{u.email}</span>
-                      <span
-                        className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                          u.role === 'admin'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                            : 'bg-muted text-muted-foreground border-transparent'
-                        }`}
-                      >
-                        {u.role === 'admin' ? 'Admin' : 'Member'}
-                      </span>
+                      {u.isPrimary ? (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                          <Crown className="size-3" />
+                          Primary Admin
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                            u.role === 'admin'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                              : 'bg-muted text-muted-foreground border-transparent'
+                          }`}
+                        >
+                          {u.role === 'admin' ? 'Admin' : 'Member'}
+                        </span>
+                      )}
                       {u.isSelf && (
                         <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                           You
                         </span>
                       )}
                     </div>
+                    {!u.isPrimary && u.role !== 'admin' && (u.permissions?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {u.permissions.map((perm) => (
+                          <span
+                            key={perm}
+                            className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20"
+                          >
+                            {perm}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
                       <span>Joined: {new Date(u.createdAt).toLocaleDateString()}</span>
                       <span>Active keys: <strong>{u.activeKeys}</strong></span>
@@ -288,57 +309,72 @@ export function UsersPage() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    {u.isSelf ? (
-                      <Button variant="ghost" size="sm" disabled className="text-xs h-8">
-                        {u.role === 'admin' ? 'Demote to member' : 'Promote to admin'}
-                      </Button>
-                    ) : (
-                      <ConfirmButton
-                        onConfirm={() => roleMutation.mutate({
-                          id: u.id,
-                          role: u.role === 'admin' ? 'member' : 'admin',
-                        })}
-                        disabled={busy}
-                        variant="ghost"
-                        size="sm"
-                        armedSize="sm"
-                        confirmLabel={u.role === 'admin' ? 'Confirm demote' : 'Confirm promote'}
-                        className={`text-xs h-8 ${u.role === 'admin' ? 'text-destructive hover:bg-destructive/10 hover:text-destructive' : ''}`}
-                        title={u.role === 'admin'
-                          ? 'Downgrade to member: their dashboard loses the admin surfaces on the next request.'
-                          : 'Grant admin: full access to keys, settings, logs, backups and this page.'}
-                      >
-                        {u.role === 'admin' ? 'Demote to member' : 'Promote to admin'}
-                      </ConfirmButton>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPermissionsUser(u)}
+                      className="text-xs h-8"
+                      title={u.isPrimary ? 'Primary Admin has full permissions' : 'Manage granular permissions'}
+                    >
+                      <Shield className="size-3.5 mr-1" />
+                      Permissions
+                    </Button>
+
+                    {!u.isPrimary && (
+                      <>
+                        {u.isSelf ? (
+                          <Button variant="ghost" size="sm" disabled className="text-xs h-8">
+                            {u.role === 'admin' ? 'Demote to member' : 'Promote to admin'}
+                          </Button>
+                        ) : (
+                          <ConfirmButton
+                            onConfirm={() => roleMutation.mutate({
+                              id: u.id,
+                              role: u.role === 'admin' ? 'member' : 'admin',
+                            })}
+                            disabled={busy}
+                            variant="ghost"
+                            size="sm"
+                            armedSize="sm"
+                            confirmLabel={u.role === 'admin' ? 'Confirm demote' : 'Confirm promote'}
+                            className={`text-xs h-8 ${u.role === 'admin' ? 'text-destructive hover:bg-destructive/10 hover:text-destructive' : ''}`}
+                            title={u.role === 'admin'
+                              ? 'Downgrade to member: their dashboard loses the admin surfaces on the next request.'
+                              : 'Grant admin: full access to keys, settings, logs, backups and this page.'}
+                          >
+                            {u.role === 'admin' ? 'Demote to member' : 'Promote to admin'}
+                          </ConfirmButton>
+                        )}
+
+                        <ConfirmButton
+                          onConfirm={() => sessionsMutation.mutate(u.id)}
+                          disabled={busy || u.sessions === 0}
+                          variant="ghost"
+                          size="icon"
+                          armedSize="xs"
+                          aria-label={`Sign out ${u.email}`}
+                          title={u.isSelf
+                            ? 'Signs every device out — including this tab.'
+                            : 'Ends this account’s dashboard sessions. They can sign in again.'}
+                          className="text-muted-foreground"
+                        >
+                          <LogOut className="size-3.5" />
+                        </ConfirmButton>
+
+                        <ConfirmButton
+                          onConfirm={() => keysMutation.mutate(u.id)}
+                          disabled={busy || u.activeKeys === 0}
+                          variant="ghost"
+                          size="icon"
+                          armedSize="xs"
+                          aria-label={`Revoke API keys of ${u.email}`}
+                          title="Revokes every personal gateway key. Clients using them start failing immediately; the keys cannot be restored."
+                          className="text-destructive hover:bg-destructive/10"
+                        >
+                          <KeyRound className="size-3.5" />
+                        </ConfirmButton>
+                      </>
                     )}
-
-                    <ConfirmButton
-                      onConfirm={() => sessionsMutation.mutate(u.id)}
-                      disabled={busy || u.sessions === 0}
-                      variant="ghost"
-                      size="icon"
-                      armedSize="xs"
-                      aria-label={`Sign out ${u.email}`}
-                      title={u.isSelf
-                        ? 'Signs every device out — including this tab.'
-                        : 'Ends this account’s dashboard sessions. They can sign in again.'}
-                      className="text-muted-foreground"
-                    >
-                      <LogOut className="size-3.5" />
-                    </ConfirmButton>
-
-                    <ConfirmButton
-                      onConfirm={() => keysMutation.mutate(u.id)}
-                      disabled={busy || u.activeKeys === 0}
-                      variant="ghost"
-                      size="icon"
-                      armedSize="xs"
-                      aria-label={`Revoke API keys of ${u.email}`}
-                      title="Revokes every personal gateway key. Clients using them start failing immediately; the keys cannot be restored."
-                      className="text-destructive hover:bg-destructive/10"
-                    >
-                      <KeyRound className="size-3.5" />
-                    </ConfirmButton>
                   </div>
                 </div>
               ))}
@@ -421,6 +457,13 @@ export function UsersPage() {
           )
         )}
       </div>
+
+      <PermissionsDialog
+        user={permissionsUser}
+        open={Boolean(permissionsUser)}
+        onOpenChange={(open) => !open && setPermissionsUser(null)}
+        onSuccess={refreshAll}
+      />
 
       <p className="text-xs text-muted-foreground">
         Creating accounts directly without invitation or approval is not allowed to protect system capacity.

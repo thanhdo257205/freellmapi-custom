@@ -34,10 +34,11 @@ const KEYS_TABS: { id: KeysTab; labelKey: string }[] = [
 
 export default function KeysPage() {
   const { t } = useI18n()
-  const { session, isPending, isError, refetch } = useUserSession()
+  const { session, hasPermission, isPending, isError, refetch } = useUserSession()
   if (isPending) return <p role="status">{t('auth.loading')}</p>
   if (isError || !session || (session.role !== 'admin' && session.role !== 'member')) return <div role="alert">Unable to load your account. <Button onClick={() => refetch()}>Retry</Button></div>
-  return session.role === 'member' ? <MemberKeysView /> : <AdminKeysPage />
+  const canManageKeys = session.role === 'admin' || (typeof hasPermission === 'function' && hasPermission('manage_keys'))
+  return canManageKeys ? <AdminKeysPage /> : <MemberKeysView />
 }
 
 function AdminKeysPage() {

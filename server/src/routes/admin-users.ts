@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   listUsers,
   setUserRole,
+  setUserPermissions,
   revokeSessionsForUser,
   revokeApiKeysForUser,
   userExists,
@@ -53,6 +54,12 @@ adminUsersRouter.patch('/:id/role', (req: Request, res: Response) => {
     setUserRole(id, parsed.data.role, actor(req).userId);
     res.json({ success: true, id, role: parsed.data.role });
   } catch (err: any) {
+    if (err.code === 'primary_admin_protected') {
+      res.status(403).json({
+        error: { message: 'The primary admin account is protected and cannot be modified.', type: 'primary_admin_protected' },
+      });
+      return;
+    }
     if (err.code === 'self_role_change') {
       res.status(409).json({
         error: { message: 'You cannot change your own role.', type: 'self_role_change' },
@@ -67,6 +74,41 @@ adminUsersRouter.patch('/:id/role', (req: Request, res: Response) => {
   }
 });
 
+const permissionsSchema = z.object({
+  permissions: z.array(z.string().trim()),
+});
+
+// PUT /api/admin/users/:id/permissions
+adminUsersRouter.put('/:id/permissions', (req: Request, res: Response) => {
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
+
+  const parsed = permissionsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: { message: parsed.error.errors.map(e => e.message).join(', '), type: 'invalid_permissions' },
+    });
+    return;
+  }
+
+  try {
+    setUserPermissions(id, parsed.data.permissions as any, actor(req).userId);
+    res.json({ success: true, id, permissions: parsed.data.permissions });
+  } catch (err: any) {
+    if (err.code === 'primary_admin_protected') {
+      res.status(403).json({
+        error: { message: 'The primary admin account is protected and cannot be modified.', type: 'primary_admin_protected' },
+      });
+      return;
+    }
+    if (err.code === 'user_not_found') {
+      res.status(404).json({ error: { message: 'No such account.', type: 'user_not_found' } });
+      return;
+    }
+    res.status(500).json({ error: { message: 'Failed to update permissions.' } });
+  }
+});
+
 // POST /api/admin/users/:id/revoke-sessions
 adminUsersRouter.post('/:id/revoke-sessions', (req: Request, res: Response) => {
   const id = parseId(req.params.id, res);
@@ -75,7 +117,15 @@ adminUsersRouter.post('/:id/revoke-sessions', (req: Request, res: Response) => {
     res.status(404).json({ error: { message: 'No such account.', type: 'user_not_found' } });
     return;
   }
-  res.json({ revoked: revokeSessionsForUser(id) });
+  try {
+    res.json({ revoked: revokeSessionsForUser(id, actor(req).userId) });
+  } catch (err: any) {
+    if (err.code === 'primary_admin_protected') {
+      res.status(403).json({ error: { message: err.message, type: 'primary_admin_protected' } });
+      return;
+    }
+    res.status(500).json({ error: { message: 'Failed to revoke sessions.' } });
+  }
 });
 
 // POST /api/admin/users/:id/revoke-keys
@@ -86,7 +136,15 @@ adminUsersRouter.post('/:id/revoke-keys', (req: Request, res: Response) => {
     res.status(404).json({ error: { message: 'No such account.', type: 'user_not_found' } });
     return;
   }
-  res.json({ revoked: revokeApiKeysForUser(id) });
+  try {
+    res.json({ revoked: revokeApiKeysForUser(id, actor(req).userId) });
+  } catch (err: any) {
+    if (err.code === 'primary_admin_protected') {
+      res.status(403).json({ error: { message: err.message, type: 'primary_admin_protected' } });
+      return;
+    }
+    res.status(500).json({ error: { message: 'Failed to revoke keys.' } });
+  }
 });
 
 // GET /api/admin/users/usage
