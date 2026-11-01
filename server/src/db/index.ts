@@ -9,6 +9,7 @@ import { restrictAllToOwner, restrictDirToOwner } from '../lib/file-permissions.
 import { nodeSqliteFactory } from './node-sqlite.js';
 import { tursoEnabled, tursoFactory } from './turso.js';
 import type { Db, DbFactory } from './types.js';
+import { readRoutingSetting } from './routing-settings-scope.js';
 
 export type { Db, DbFactory } from './types.js';
 
@@ -263,8 +264,10 @@ export function regenerateUnifiedKey(): string {
 // Generic key/value settings accessors (used by routing strategy, etc.).
 export function getSetting(key: string): string | undefined {
   const db = getDb();
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
-  return row?.value;
+  return readRoutingSetting(db, key, () => {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    return row?.value;
+  });
 }
 
 export function setSetting(key: string, value: string): void {

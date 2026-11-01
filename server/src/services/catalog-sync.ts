@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import type { Db } from '../db/types.js';
+import { isTursoDatabase } from '../db/turso.js';
 import { getDb, getSetting, setSetting } from '../db/index.js';
 import { hasProvider } from '../providers/index.js';
 import { MEDIA_PLATFORMS, TRANSCRIPTION_PLATFORMS, VIDEO_PLATFORMS } from './media.js';
@@ -1252,6 +1253,13 @@ let cancelInterval: (() => void) | null = null;
 
 export function startCatalogSync(scheduler: Scheduler, opts: { reapplyCached?: boolean } = {}): void {
   if (cancelInterval) return;
+  // Applying a catalog issues thousands of synchronous remote statements. That
+  // blocks HTTP health checks long enough for hosted services to restart. Keep
+  // durable catalog rows; local SQLite retains its normal automatic sync.
+  if (isTursoDatabase(getDb())) {
+    console.log('[catalog-sync] automatic sync skipped for synchronous Turso storage');
+    return;
+  }
   if (process.env.CATALOG_SYNC_DISABLED === '1') {
     console.log('[catalog-sync] disabled via CATALOG_SYNC_DISABLED=1');
     return;
