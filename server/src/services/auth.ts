@@ -8,12 +8,16 @@ import { hashPassword, verifyPassword } from '../lib/password.js';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+import type { Permission } from '@freellmapi/shared/user-access.js';
+
 export type UserRole = 'admin' | 'member';
 
 export interface SessionUser {
   userId: number;
   email: string;
   role: UserRole;
+  isPrimary?: boolean;
+  permissions?: Permission[];
 }
 
 function sha256(s: string): string {
@@ -33,6 +37,15 @@ export function userCount(): number {
   return row.c;
 }
 
+function parsePermissions(raw: string | null | undefined, role: string, isPrimary: boolean): Permission[] {
+  if (isPrimary || role === 'admin') return ['*'];
+  try {
+    return JSON.parse(raw || '[]');
+  } catch {
+    return [];
+  }
+}
+
 /** Create a user. Throws { code: 'email_taken' } if the email already exists. */
 export function createUser(email: string, password: string, role?: UserRole): SessionUser {
   const db = getDb();
@@ -43,22 +56,45 @@ export function createUser(email: string, password: string, role?: UserRole): Se
     err.code = 'email_taken';
     throw err;
   }
-  // The first user ever created is automatically an admin
-  const assignedRole: UserRole = role ?? (userCount() === 0 ? 'admin' : 'member');
-  const result = db.prepare('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)')
-    .run(normalized, hashPassword(password), assignedRole);
-  return { userId: Number(result.lastInsertRowid), email: normalized, role: assignedRole };
+  // The first user ever created is automatically the primary admin
+  const isFirst = userCount() === 0;
+  const assignedRole: UserRole = role ?? (isFirst ? 'admin' : 'member');
+  const isPrimary = isFirst ? 1 : 0;
+  const permissions = isFirst || assignedRole === 'admin' ? '["*"]' : '[]';
+
+  const cols = db.pragma('table_info(users)') as Array<{ name: string }>;
+  const hasIsPrimary = cols.some(c => c.name === 'is_primary');
+  const hasPermissions = cols.some(c => c.name === 'permissions');
+
+  let result;
+  if (hasIsPrimary && hasPermissions) {
+    result = db.prepare('INSERT INTO users (email, password_hash, role, is_primary, permissions) VALUES (?, ?, ?, ?, ?)')
+      .run(normalized, hashPassword(password), assignedRole, isPrimary, permissions);
+  } else {
+    result = db.prepare('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)')
+      .run(normalized, hashPassword(password), assignedRole);
+  }
+
+  return {
+    userId: Number(result.lastInsertRowid),
+    email: normalized,
+    role: assignedRole,
+    isPrimary: Boolean(isPrimary),
+    permissions: isFirst || assignedRole === 'admin' ? ['*'] : [],
+  };
 }
 
 /** Verify credentials. Returns the user on success, null on failure. */
 export function verifyCredentials(email: string, password: string): SessionUser | null {
   const db = getDb();
-  const row = db.prepare('SELECT id, email, password_hash, role FROM users WHERE email = ?')
-    .get(normalizeEmail(email)) as { id: number; email: string; password_hash: string; role?: string } | undefined;
+  const row = db.prepare('SELECT * FROM users WHERE email = ?')
+    .get(normalizeEmail(email)) as any;
   if (!row) return null;
   if (!verifyPassword(password, row.password_hash)) return null;
   const role: UserRole = row.role === 'admin' ? 'admin' : 'member';
-  return { userId: row.id, email: row.email, role };
+  const isPrimary = Boolean(row.is_primary);
+  const permissions = parsePermissions(row.permissions, role, isPrimary);
+  return { userId: row.id, email: row.email, role, isPrimary, permissions };
 }
 
 /** Desktop app only: a session for the install's account, creating the hidden
@@ -86,17 +122,19 @@ export function validateSession(token: string | undefined | null): SessionUser |
   if (!token) return null;
   const db = getDb();
   const row = db.prepare(`
-    SELECT s.user_id, s.expires_at_ms, u.email, u.role
+    SELECT s.user_id, s.expires_at_ms, u.*
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ?
-  `).get(sha256(token)) as { user_id: number; expires_at_ms: number; email: string; role?: string } | undefined;
+  `).get(sha256(token)) as any;
   if (!row) return null;
   if (row.expires_at_ms < Date.now()) {
     db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
     return null;
   }
   const role: UserRole = row.role === 'admin' ? 'admin' : 'member';
-  return { userId: row.user_id, email: row.email, role };
+  const isPrimary = Boolean(row.is_primary);
+  const permissions = parsePermissions(row.permissions, role, isPrimary);
+  return { userId: row.user_id, email: row.email, role, isPrimary, permissions };
 }
 
 export function deleteSession(token: string | undefined | null): void {
@@ -149,10 +187,12 @@ export function accountEmail(): string | null {
  */
 export function resetUserPassword(newPassword: string): SessionUser | null {
   const db = getDb();
-  const row = db.prepare('SELECT id, email, role FROM users LIMIT 1').get() as { id: number; email: string; role?: string } | undefined;
+  const row = db.prepare('SELECT * FROM users LIMIT 1').get() as any;
   if (!row) return null;
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), row.id);
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
   const role: UserRole = row.role === 'admin' ? 'admin' : 'member';
-  return { userId: row.id, email: row.email, role };
+  const isPrimary = Boolean(row.is_primary);
+  const permissions = parsePermissions(row.permissions, role, isPrimary);
+  return { userId: row.id, email: row.email, role, isPrimary, permissions };
 }

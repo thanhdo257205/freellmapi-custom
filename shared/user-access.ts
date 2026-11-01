@@ -1,8 +1,23 @@
 /** Public multi-user API contracts. Never include plaintext secrets in list DTOs. */
+
+export const SYSTEM_PERMISSIONS = [
+  'manage_keys',
+  'manage_users',
+  'manage_invites',
+  'manage_requests',
+  'manage_settings',
+  'manage_backups',
+  'view_logs',
+] as const;
+
+export type Permission = typeof SYSTEM_PERMISSIONS[number] | '*';
+
 export interface UserSession {
   userId: number
   email: string
   role: 'admin' | 'member'
+  isPrimary?: boolean
+  permissions?: Permission[]
 }
 
 export interface UserApiKey {
@@ -20,6 +35,8 @@ export interface AdminUser {
   id: number
   email: string
   role: 'admin' | 'member'
+  isPrimary: boolean
+  permissions: Permission[]
   createdAt: string
   /** Non-revoked `sk-flm-…` keys this account can still authenticate with. */
   activeKeys: number
