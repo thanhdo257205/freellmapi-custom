@@ -6,6 +6,7 @@ import {
   mintUserApiKey,
   revokeUserApiKey,
 } from '../services/user-keys.js';
+import { getUserUsage } from '../services/user-quotas.js';
 import type { SessionUser } from '../services/auth.js';
 
 export const userKeysRouter = Router();
@@ -58,4 +59,10 @@ userKeysRouter.delete('/keys/:id', (req: Request, res: Response) => {
   }
 
   res.json({ success: true });
+});
+
+// GET /api/user/usage — monthly usage and quota for the authenticated member
+userKeysRouter.get('/usage', (req: Request, res: Response) => {
+  const user = (req as Request & { user?: SessionUser }).user!;
+  res.json({ usage: getUserUsage(user.userId) });
 });

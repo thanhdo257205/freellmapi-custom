@@ -1,6 +1,7 @@
 import { getDb } from '../db/index.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { mintUserApiKey } from './user-keys.js';
+import { notifyAdminNewRegistration, notifyUserRegistrationApproved } from './notification-mailer.js';
 import type { RegistrationRequest } from '@freellmapi/shared/user-access.js';
 
 function normalizeEmail(email: string): string {
@@ -73,6 +74,9 @@ export function createRegistrationRequest(
     INSERT INTO registration_requests (email, password_hash, note, status)
     VALUES (?, ?, ?, 'pending')
   `).run(normalized, hashed, note?.trim() || null);
+
+  // Send admin notification asynchronously (non-blocking)
+  notifyAdminNewRegistration(normalized, note ?? null).catch(() => {});
 
   return {
     id: Number(result.lastInsertRowid),
@@ -149,6 +153,9 @@ export function approveRegistrationRequest(
   // Mark request as approved
   db.prepare(`UPDATE registration_requests SET status = 'approved', reviewed_at = datetime('now'), reviewed_by = ? WHERE id = ?`)
     .run(adminUserId, req.id);
+
+  // Send approval email notification asynchronously (non-blocking)
+  notifyUserRegistrationApproved(req.email).catch(() => {});
 
   return { userId, email: req.email, role: 'member' };
 }
