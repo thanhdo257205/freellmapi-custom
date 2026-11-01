@@ -1,0 +1,12 @@
+{
+  // Emit beside the sources to preserve existing @freellmapi/shared/*.js paths.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmitOnError": true
+  },
+  "include": ["*.ts"]
+}
