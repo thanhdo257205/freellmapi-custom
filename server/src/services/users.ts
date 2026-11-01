@@ -5,6 +5,27 @@ import type { AdminUser as AdminUserRow, Permission } from '@freellmapi/shared/u
 // Admin-side account management. Deliberately its own service file so upstream's
 // services/auth.ts stays the self-scoped authentication path it has always been.
 
+interface PermissionRow {
+  role: string;
+  is_primary: number;
+  permissions: string | null;
+}
+
+/**
+ * The permission set a row holds. `['*']` is full administrative access, and an
+ * admin or primary account holds it whether or not the column says so. Corrupt
+ * JSON fails closed: an unknown grant is treated as no grant.
+ */
+function grantedPermissions(row: PermissionRow): Permission[] {
+  if (row.is_primary || row.role === 'admin') return ['*'];
+  try {
+    const parsed: unknown = JSON.parse(row.permissions || '[]');
+    return Array.isArray(parsed) ? (parsed as Permission[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Every account with the counts an operator needs to decide what to do with it. */
 export function listUsers(actorUserId: number): AdminUserRow[] {
   const db = getDb();
@@ -29,12 +50,7 @@ export function listUsers(actorUserId: number): AdminUserRow[] {
 
   return rows.map(r => {
     const isPrimary = Boolean(r.is_primary);
-    let permissions: Permission[] = [];
-    try {
-      permissions = isPrimary || r.role === 'admin' ? ['*'] : JSON.parse(r.permissions || '[]');
-    } catch {
-      permissions = isPrimary || r.role === 'admin' ? ['*'] : [];
-    }
+    const permissions = grantedPermissions({ role: r.role, is_primary: r.is_primary, permissions: r.permissions });
 
     return {
       id: r.id,
@@ -96,11 +112,31 @@ export function setUserRole(userId: number, role: UserRole, actorUserId: number)
 }
 
 /**
- * Update granular permissions for a user.
- * Primary admin permissions cannot be altered.
+ * Update granular permissions for an account.
+ *
+ * Two rules keep this from being the way out of the permission model:
+ *
+ * 1. Nobody edits their own grant. Widening it is self-escalation; narrowing it
+ *    is self-lockout. Same reasoning as `setUserRole`.
+ * 2. An actor can only ever write a list of permissions it holds itself. A
+ *    `manage_users` holder therefore cannot hand out `manage_settings` or
+ *    `manage_backups` it does not have, which is how a delegate would otherwise
+ *    collect the whole admin surface one victim at a time.
+ *
+ * Throws `{ code }`: 'self_permission_change' | 'user_not_found' |
+ * 'primary_admin_protected' | 'insufficient_privileges'.
  */
 export function setUserPermissions(userId: number, permissions: Permission[], actorUserId: number): void {
+  if (userId === actorUserId) {
+    const err = new Error('You cannot change your own permissions') as any;
+    err.code = 'self_permission_change';
+    throw err;
+  }
+
   const db = getDb();
+  const save = (): void => {
+    db.prepare('UPDATE users SET permissions = ? WHERE id = ?').run(JSON.stringify(permissions), userId);
+  };
 
   const target = db.prepare('SELECT id, role, is_primary FROM users WHERE id = ?').get(userId) as { id: number; role: string; is_primary: number } | undefined;
   if (!target) {
@@ -115,22 +151,39 @@ export function setUserPermissions(userId: number, permissions: Permission[], ac
     throw err;
   }
 
-  const actor = db.prepare('SELECT id, role, is_primary FROM users WHERE id = ?').get(actorUserId) as { id: number; role: string; is_primary: number } | undefined;
-  if (!actor || (actor.role !== 'admin' && !actor.is_primary)) {
-    // Non-admin actors (e.g. member with manage_users) cannot alter admin permissions or grant wildcard
-    if (target.role === 'admin') {
-      const err = new Error('Only administrators can modify administrator permissions') as any;
-      err.code = 'insufficient_privileges';
-      throw err;
-    }
-    if (permissions.includes('*')) {
-      const err = new Error('Non-administrators cannot grant full administrative access') as any;
-      err.code = 'insufficient_privileges';
-      throw err;
-    }
+  const actor = db.prepare('SELECT id, role, is_primary, permissions FROM users WHERE id = ?').get(actorUserId) as PermissionRow | undefined;
+  if (!actor) {
+    const err = new Error('Only administrators can change account permissions') as any;
+    err.code = 'insufficient_privileges';
+    throw err;
   }
 
-  db.prepare('UPDATE users SET permissions = ? WHERE id = ?').run(JSON.stringify(permissions), userId);
+  const actorHolds = grantedPermissions(actor);
+  if (actorHolds.includes('*')) {
+    save();
+    return;
+  }
+
+  // A delegate cannot rewrite an administrator's access, and cannot mint
+  // full administrative access for anyone.
+  if (target.role === 'admin') {
+    const err = new Error('Only administrators can modify administrator permissions') as any;
+    err.code = 'insufficient_privileges';
+    throw err;
+  }
+  if (permissions.includes('*')) {
+    const err = new Error('Non-administrators cannot grant full administrative access') as any;
+    err.code = 'insufficient_privileges';
+    throw err;
+  }
+  const beyond = permissions.filter(p => !actorHolds.includes(p));
+  if (beyond.length > 0) {
+    const err = new Error(`Cannot grant permissions you do not hold: ${beyond.join(', ')}`) as any;
+    err.code = 'insufficient_privileges';
+    throw err;
+  }
+
+  save();
 }
 
 /** Ends every dashboard session an account holds, including other devices' tabs. */

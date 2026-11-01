@@ -228,9 +228,41 @@ describe('Admin user management', () => {
     expect(alterAdminRes.status).toBe(403);
     expect(alterAdminRes.body?.error?.type).toBe('insufficient_privileges');
 
-    // 4. Manager can legitimately manage member granular permissions
-    const okRes = await hit(`/api/admin/users/${victim.userId}/permissions`, 'PUT', { permissions: ['manage_invites'] }, managerToken);
+    // 4. Manager cannot hand out a permission it does not itself hold. This is
+    //    the accumulation path: manage_users + manage_invites + view_logs + …
+    //    one victim at a time is indistinguishable from admin.
+    const beyondRes = await hit(`/api/admin/users/${victim.userId}/permissions`, 'PUT', { permissions: ['manage_invites'] }, managerToken);
+    expect(beyondRes.status).toBe(403);
+    expect(beyondRes.body?.error?.type).toBe('insufficient_privileges');
+    expect((await hit('/api/invites', 'GET', undefined, createSession(victim.userId))).status).toBe(403);
+
+    // 5. Manager can still write the set it does hold.
+    const okRes = await hit(`/api/admin/users/${victim.userId}/permissions`, 'PUT', { permissions: ['manage_users'] }, managerToken);
     expect(okRes.status).toBe(200);
+  });
+
+  it('will not let the caller change their own permissions', async () => {
+    const selfManager = createUser('selfmanager@example.com', 'SelfManager123!', 'member');
+    await hit(`/api/admin/users/${selfManager.userId}/permissions`, 'PUT', { permissions: ['manage_users'] }, adminToken);
+    const selfToken = createSession(selfManager.userId);
+
+    // Widen: the escalation path — a delegate grants itself what it was never given.
+    const widen = await hit(`/api/admin/users/${selfManager.userId}/permissions`, 'PUT', { permissions: ['manage_users', 'manage_backups'] }, selfToken);
+    expect(widen.status).toBe(409);
+    expect(widen.body?.error?.type).toBe('self_permission_change');
+    expect((await hit('/api/backups', 'GET', undefined, selfToken)).status).toBe(403);
+
+    // Narrow: the lockout path, refused for the same reason setUserRole refuses
+    // self-demotion. An admin is held to it too, so the rule has no exceptions.
+    expect((await hit(`/api/admin/users/${selfManager.userId}/permissions`, 'PUT', { permissions: [] }, selfToken)).status).toBe(409);
+    expect((await hit(`/api/admin/users/${adminId}/permissions`, 'PUT', { permissions: [] }, adminToken)).status).toBe(409);
+    const stillAdmin = await hit('/api/user/session', 'GET', undefined, adminToken);
+    expect(stillAdmin.body).toMatchObject({ role: 'admin', isPrimary: true });
+
+    // Another account's grant is unaffected, so the block is not a freeze.
+    const peer = createUser('peer@example.com', 'PeerPass123!', 'member');
+    const granted = await hit(`/api/admin/users/${peer.userId}/permissions`, 'PUT', { permissions: ['manage_users'] }, selfToken);
+    expect(granted.status).toBe(200);
   });
 
   it('enforces view_logs permission on /api/analytics', async () => {
