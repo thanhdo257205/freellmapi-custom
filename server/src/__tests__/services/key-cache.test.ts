@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initDb, getDb } from '../../db/index.js';
 import { initEncryptionKey } from '../../lib/crypto.js';
 import {
-  getUsableKeysByPlatform,
   getUsableKeysForPlatform,
   countUsableKeysByPlatform,
   getAllUsableKeys,
