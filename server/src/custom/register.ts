@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireAdmin } from '../middleware/requireAdmin.js';
+import { requirePermission } from '../middleware/requirePermission.js';
 import { adminUsersRouter } from '../routes/admin-users.js';
 import { adminRegistrationRequestsRouter } from '../routes/admin-registration-requests.js';
 import { invitesRouter } from '../routes/invites.js';
@@ -12,15 +12,11 @@ import { userInferenceGate } from '../middleware/user-rate-limit.js';
 // Everything this fork adds to the HTTP surface is wired here, so upstream's
 // app.ts keeps a handful of added lines instead of edited mount statements.
 //
-// The gate below is deliberately a separate app-level mount registered BEFORE
-// upstream's own `app.use('/api/keys', requireAuth, keysRouter)` lines. Gating
-// the router objects themselves would not work: `router.use()` appends to the
-// end of a stack that is already populated at import time, so the routes would
-// answer first and the gate would never run. Mounting the prefixes here means an
-// upstream commit that rewrites or reorders its own mounts cannot silently drop
-// admin access control.
+// The gates below are registered BEFORE upstream's own mounts in app.ts so that
+// granular RBAC permissions (manage_keys, manage_settings, etc.) are strictly
+// enforced before upstream route handlers run.
 
-/** `/api/*` prefixes an admin session is required for. */
+/** `/api/*` prefixes that require administrative permissions. */
 export const ADMIN_ONLY_PREFIXES: string[] = [
   '/api/keys',
   '/api/client-profiles',
@@ -37,17 +33,16 @@ export function registerCustomRoutes(app: Express): void {
   // Rate-limiting and usage tracking gate for member personal API keys (/v1 inference)
   app.use('/v1', userInferenceGate);
 
-  // Guard mount: it ends the request with 401/403 for a non-admin, and simply
-  // calls next() otherwise. Upstream's own mount then re-runs requireAuth for
-  // the admin case — one extra session lookup per admin request, which is the
-  // price of not editing upstream's mount lines.
-  app.use(ADMIN_ONLY_PREFIXES, requireAuth, requireAdmin);
+  // Granular route-level permission gates for upstream-mounted endpoints
+  app.use('/api/keys', requireAuth, requirePermission('manage_keys'));
+  app.use(['/api/client-profiles', '/api/settings', '/api/update'], requireAuth, requirePermission('manage_settings'));
+  app.use('/api/logs', requireAuth, requirePermission('view_logs'));
+  app.use('/api/backups', requireAuth, requirePermission('manage_backups'));
 
-  // Above the upstream authRouter mount, so a future upstream /register cannot
-  // shadow invite registration.
+  // Custom fork routes with their dedicated permission gates
   app.use('/api/auth', externalAuthRouter, customAuthRouter);
-  app.use('/api/invites', requireAuth, invitesRouter);
-  app.use('/api/admin/users', requireAuth, adminUsersRouter);
-  app.use('/api/admin/registration-requests', requireAuth, adminRegistrationRequestsRouter);
+  app.use('/api/invites', requireAuth, requirePermission('manage_invites'), invitesRouter);
+  app.use('/api/admin/users', requireAuth, requirePermission('manage_users'), adminUsersRouter);
+  app.use('/api/admin/registration-requests', requireAuth, requirePermission('manage_requests'), adminRegistrationRequestsRouter);
   app.use('/api/user', requireAuth, userKeysRouter);
 }
