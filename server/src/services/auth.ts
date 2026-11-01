@@ -56,11 +56,14 @@ export function createUser(email: string, password: string, role?: UserRole): Se
     err.code = 'email_taken';
     throw err;
   }
-  // The first user ever created is automatically the primary admin
+  // The first user ever created is automatically the primary admin — but only if
+  // it is an administrator. A member made primary holds '*' and cannot be
+  // demoted, revoked, or edited by anyone, so `role: 'member'` on an empty
+  // database must not inherit the flag.
   const isFirst = userCount() === 0;
   const assignedRole: UserRole = role ?? (isFirst ? 'admin' : 'member');
-  const isPrimary = isFirst ? 1 : 0;
-  const permissions = isFirst || assignedRole === 'admin' ? '["*"]' : '[]';
+  const isPrimary = isFirst && assignedRole === 'admin' ? 1 : 0;
+  const permissions = assignedRole === 'admin' ? '["*"]' : '[]';
 
   const cols = db.pragma('table_info(users)') as Array<{ name: string }>;
   const hasIsPrimary = cols.some(c => c.name === 'is_primary');
@@ -80,7 +83,7 @@ export function createUser(email: string, password: string, role?: UserRole): Se
     email: normalized,
     role: assignedRole,
     isPrimary: Boolean(isPrimary),
-    permissions: isFirst || assignedRole === 'admin' ? ['*'] : [],
+    permissions: assignedRole === 'admin' ? ['*'] : [],
   };
 }
 
