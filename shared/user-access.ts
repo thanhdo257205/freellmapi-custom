@@ -42,3 +42,13 @@ export interface InviteCode {
   status: 'active' | 'exhausted' | 'expired' | 'revoked'
   createdAt: string
 }
+
+export interface RegistrationRequest {
+  id: number
+  email: string
+  note: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  createdAt: string
+  reviewedAt: string | null
+}
+
