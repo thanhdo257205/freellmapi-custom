@@ -20,6 +20,7 @@ export interface KeyRow {
 }
 
 let keyRegistry: Map<string, KeyRow[]> | null = null;
+let cachedDb: Db | null = null;
 let testOverrideEnabled: boolean | null = null;
 
 function cachesEnabled(): boolean {
@@ -32,6 +33,7 @@ export function setKeyCacheTestOverride(enabled: boolean | null): void {
   testOverrideEnabled = enabled;
   if (enabled === false) {
     keyRegistry = null;
+    cachedDb = null;
   }
 }
 
@@ -41,6 +43,7 @@ export function setKeyCacheTestOverride(enabled: boolean | null): void {
  */
 export function invalidateKeyCache(): void {
   keyRegistry = null;
+  cachedDb = null;
 }
 
 /**
@@ -48,7 +51,7 @@ export function invalidateKeyCache(): void {
  * Reads from memory cache if populated, otherwise fetches from DB in a single query.
  */
 export function getUsableKeysByPlatform(db: Db = getDb()): Map<string, KeyRow[]> {
-  if (cachesEnabled() && keyRegistry !== null) {
+  if (cachesEnabled() && keyRegistry !== null && cachedDb === db) {
     return keyRegistry;
   }
 
@@ -68,6 +71,7 @@ export function getUsableKeysByPlatform(db: Db = getDb()): Map<string, KeyRow[]>
 
   if (cachesEnabled()) {
     keyRegistry = map;
+    cachedDb = db;
   }
   return map;
 }
