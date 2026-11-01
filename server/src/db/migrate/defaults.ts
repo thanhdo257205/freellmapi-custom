@@ -50,6 +50,7 @@ import * as keyLastHealthyAt from '../migrations/20261020_000001_key_last_health
 
 import * as migration20261031_155642_custom_user_roles_and_keys from '../migrations/20261031_155642_custom_user_roles_and_keys.js';
 import * as customRegistrationRequests from '../migrations/20261101_040000_custom_registration_requests.js';
+import * as customUserUsage from '../migrations/20261101_050000_custom_user_usage.js';
 
 
 export interface MigrationModule {
@@ -114,6 +115,7 @@ export const CUSTOM_USER_ROLES_AND_KEYS_FILENAME = '20261031_155642_custom_user_
 export const CUSTOM_EXTERNAL_AUTH_FILENAME = '20261101_020000_custom_external_auth.ts';
 
 export const CUSTOM_REGISTRATION_REQUESTS_FILENAME = '20261101_040000_custom_registration_requests.ts';
+export const CUSTOM_USER_USAGE_FILENAME = '20261101_050000_custom_user_usage.ts';
 
 
 export const DEFAULT_MIGRATIONS: readonly DefaultMigration[] = [
@@ -167,4 +169,5 @@ export const DEFAULT_MIGRATIONS: readonly DefaultMigration[] = [
   { filename: CUSTOM_USER_ROLES_AND_KEYS_FILENAME, module: migration20261031_155642_custom_user_roles_and_keys },
   { filename: CUSTOM_EXTERNAL_AUTH_FILENAME, module: customExternalAuth },
   { filename: CUSTOM_REGISTRATION_REQUESTS_FILENAME, module: customRegistrationRequests },
+  { filename: CUSTOM_USER_USAGE_FILENAME, module: customUserUsage },
 ];
