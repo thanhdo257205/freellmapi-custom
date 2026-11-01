@@ -267,10 +267,14 @@ function Navbar() {
   const canManageInvites = typeof hasPermission === 'function' ? hasPermission('manage_invites') : isAdmin
   const canManageUsers = typeof hasPermission === 'function' ? hasPermission('manage_users') : isAdmin
   const canManageSettings = typeof hasPermission === 'function' ? hasPermission('manage_settings') : isAdmin
+  const canManageKeys = typeof hasPermission === 'function' ? hasPermission('manage_keys') : isAdmin
 
   const visibleNavItems: Array<{ to: string; labelKey: string; customLabel?: string }> = [
     ...navItems.filter((i) => {
       if (i.to === '/analytics' && isMember && (typeof hasPermission !== 'function' || !hasPermission('view_logs'))) return false
+      // The Keys page reads /api/health and /api/keys, both gated, so leaving
+      // the tab up for an account without manage_keys opens a wall of 403s.
+      if (i.to === '/keys' && isMember && !canManageKeys) return false
       if (i.to === '/premium' && isMember) return false
       return true
     }),
