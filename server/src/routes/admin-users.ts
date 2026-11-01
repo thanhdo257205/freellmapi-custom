@@ -8,6 +8,7 @@ import {
   revokeApiKeysForUser,
   userExists,
 } from '../services/users.js';
+import { listAllUsersUsage, setUserRpmLimit } from '../services/user-quotas.js';
 import type { SessionUser } from '../services/auth.js';
 
 // Admin user management. Mounted under /api/admin/users, which is in
@@ -86,4 +87,35 @@ adminUsersRouter.post('/:id/revoke-keys', (req: Request, res: Response) => {
     return;
   }
   res.json({ revoked: revokeApiKeysForUser(id) });
+});
+
+// GET /api/admin/users/usage
+adminUsersRouter.get('/usage', (req: Request, res: Response) => {
+  const month = typeof req.query.month === 'string' ? req.query.month : undefined;
+  res.json({ usage: listAllUsersUsage(month) });
+});
+
+const quotaSchema = z.object({
+  rpmLimit: z.number().int().min(1).max(1000),
+});
+
+// PUT /api/admin/users/:id/quota
+adminUsersRouter.put('/:id/quota', (req: Request, res: Response) => {
+  const id = parseId(req.params.id, res);
+  if (id === null) return;
+  if (!userExists(id)) {
+    res.status(404).json({ error: { message: 'No such account.', type: 'user_not_found' } });
+    return;
+  }
+
+  const parsed = quotaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: { message: 'rpmLimit must be an integer between 1 and 1000', type: 'invalid_quota' },
+    });
+    return;
+  }
+
+  const updated = setUserRpmLimit(id, parsed.data.rpmLimit);
+  res.json({ success: true, id, rpmLimit: parsed.data.rpmLimit, updated });
 });
