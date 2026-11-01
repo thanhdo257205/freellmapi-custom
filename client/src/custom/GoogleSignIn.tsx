@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/i18n'
 import { useExternalAuthMethods } from './use-external-auth'
 
 export function GoogleSignIn({
@@ -11,10 +12,11 @@ export function GoogleSignIn({
   requiresInvite?: boolean
 }) {
   const { data } = useExternalAuthMethods()
+  const { t } = useI18n()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(() =>
     new URLSearchParams(window.location.search).has('auth_error')
-      ? 'Google sign-in failed or was cancelled. For a new account, open your invitation link and try again.'
+      ? t('auth.googleError')
       : '',
   )
   useEffect(() => {
@@ -64,11 +66,11 @@ export function GoogleSignIn({
             disabled={busy || (requiresInvite && !inviteCode?.trim())}
             onClick={start}
           >
-            {busy ? 'Connecting to Google…' : 'Continue with Google'}
+            {busy ? t('auth.connectingGoogle') : t('auth.continueWithGoogle')}
           </Button>
           {requiresInvite && (
             <p className="text-xs text-muted-foreground">
-              An invite code is required for a new Google account.
+              {t('auth.googleInviteRequired')}
             </p>
           )}
         </>
