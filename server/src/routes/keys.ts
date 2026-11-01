@@ -35,6 +35,7 @@ import type { Db } from '../db/types.js';
 import type { Platform } from '@freellmapi/shared/types.js';
 import { parseModelScope } from '../lib/model-scope.js';
 import { KEY_PROXY_URL_ERROR, KEY_PROXY_URL_MAX, decryptProxyUrl, encryptProxyUrl, isValidKeyProxyUrl, maskProxyUrl } from '../lib/key-proxy.js';
+import { invalidateKeyCache } from '../services/key-cache.js';
 
 export const keysRouter = Router();
 
@@ -237,6 +238,7 @@ function insertImportedKey(platform: (typeof PLATFORMS)[number], keyName: string
     INSERT INTO api_keys (platform, label, encrypted_key, iv, auth_tag, status, enabled)
     VALUES (?, ?, ?, ?, ?, 'unknown', 1)
   `).run(platform, keyName, encrypted, iv, authTag);
+  invalidateKeyCache();
 }
 
 // Count enabled catalog models for a platform. Used to warn when a key is
@@ -788,6 +790,7 @@ keysRouter.post('/', (req: Request, res: Response) => {
       const existing = sentinel ?? rows[0];
       if (existing) {
         db.prepare("UPDATE api_keys SET enabled = 1, status = 'unknown' WHERE id = ?").run(existing.id);
+        invalidateKeyCache();
         respond(existing.id, maskKey(plaintext(existing) ?? keyToStore));
         return;
       }
@@ -804,6 +807,7 @@ keysRouter.post('/', (req: Request, res: Response) => {
         values.push(proxy.encrypted, proxy.iv, proxy.authTag);
       }
       db.prepare(`UPDATE api_keys SET ${updates.join(', ')} WHERE id = ?`).run(...values, sentinel.id);
+      invalidateKeyCache();
       clearCooldownsForKey(sentinel.id);
       respond(sentinel.id, maskKey(rawKey));
       return;
@@ -818,6 +822,7 @@ keysRouter.post('/', (req: Request, res: Response) => {
     INSERT INTO api_keys (platform, label, encrypted_key, iv, auth_tag, status, enabled, proxy_encrypted, proxy_iv, proxy_auth_tag)
     VALUES (?, ?, ?, ?, ?, 'unknown', 1, ?, ?, ?)
   `).run(platform, label ?? '', encrypted, iv, authTag, proxy.encrypted, proxy.iv, proxy.authTag);
+  invalidateKeyCache();
 
   // #1348: fetch the provider's models in the background when the catalog
   // carries none for it. No-op for every other platform.
@@ -1832,6 +1837,7 @@ keysRouter.delete('/:id', (req: Request, res: Response) => {
     db.prepare('DELETE FROM media_models WHERE key_id = ?').run(id);
   });
   remove();
+  invalidateKeyCache();
 
   res.json({ success: true });
 });
@@ -1867,6 +1873,7 @@ keysRouter.patch('/platform/:platform', (req: Request, res: Response) => {
       ? db.prepare("UPDATE api_keys SET enabled = ? WHERE platform = 'custom' AND group_label IS NULL").run(enabled ? 1 : 0)
       : db.prepare("UPDATE api_keys SET enabled = ? WHERE platform = 'custom' AND group_label = ?").run(enabled ? 1 : 0, groupLabel);
 
+  invalidateKeyCache();
   res.json({ success: true, enabled, updatedKeys: result.changes });
 });
 
@@ -1981,6 +1988,8 @@ keysRouter.patch('/:id', (req: Request, res: Response) => {
     if (changes > 0 && groupLabel !== undefined) setCustomEndpointGroup(db, id, normalizeGroupLabel(groupLabel));
     return { changes };
   })();
+
+  invalidateKeyCache();
 
   if (result.changes === 0) {
     res.status(404).json({ error: { message: 'Key not found' } });

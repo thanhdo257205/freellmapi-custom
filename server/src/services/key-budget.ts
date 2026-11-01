@@ -12,6 +12,7 @@
  * Caps are opt-in (0 = unlimited) and reset on UTC month boundaries.
  */
 import { getDb } from '../db/index.js';
+import { invalidateKeyCache } from './key-cache.js';
 
 export interface MonthlyBudgetCaps {
   /** 0 = unlimited (the default, unchanged behaviour). */
@@ -74,6 +75,7 @@ export function setMonthlyBudgetCaps(
   }
   if (sets.length === 0) return false;
   const result = getDb().prepare(`UPDATE api_keys SET ${sets.join(', ')} WHERE id = ?`).run(...values, keyId);
+  if (result.changes > 0) invalidateKeyCache();
   return result.changes > 0;
 }
 
@@ -109,8 +111,9 @@ export function checkMonthlyBudget(
   keyId: number,
   estimatedTokens: number,
   now = Date.now(),
+  knownCaps?: MonthlyBudgetCaps,
 ): BudgetVerdict {
-  const caps = getMonthlyBudgetCaps(keyId);
+  const caps = knownCaps ?? getMonthlyBudgetCaps(keyId);
   if (caps.requestCap <= 0 && caps.tokenCap <= 0) return { allowed: true };
 
   const usage = getMonthlyUsage(keyId, now);
@@ -132,8 +135,9 @@ export function checkMonthlyBudget(
 export function reserveMonthlyBudget(
   keyId: number,
   estimatedTokens: number,
+  knownCaps?: MonthlyBudgetCaps,
 ): { allowed: true; release: () => void } | Extract<BudgetVerdict, { allowed: false }> {
-  const verdict = checkMonthlyBudget(keyId, estimatedTokens);
+  const verdict = checkMonthlyBudget(keyId, estimatedTokens, undefined, knownCaps);
   if (!verdict.allowed) return verdict;
   const active = activeReservations();
   const reservation = { keyId, tokens: Math.max(0, estimatedTokens) };

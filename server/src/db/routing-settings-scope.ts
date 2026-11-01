@@ -11,7 +11,7 @@ const KEYS = [
   'routing_headroom_ramp_start', 'routing_headroom_floor', 'routing_min_reliability_floor',
   'routing_provider_moment_attribution', 'routing_task_weight_share',
   'key_selection_strategy', 'routing_decision_model', 'routing_decision_min_probability',
-  'unify_models_enabled',
+  'unify_models_enabled', 'min_context_window',
 ] as const;
 const allowed = new Set<string>(KEYS);
 const sql = `SELECT key, value FROM settings WHERE key IN (${KEYS.map(() => '?').join(',')})`;
